@@ -137,3 +137,7 @@ TransitFM1 is based on [Dinghy](https://github.com/zvenson/dinghy) by zvenson. D
 [SLOOP](https://github.com/isod89/sloop-fm1) (isod89) carries it. The boot stub, the stub's write order and the
 package marker are [ChoralRoot FM-1](https://github.com/Quixotic7/ChoralRootFM1)'s. "M-VAVE" and "FM-1" belong to
 their owners: TransitFM1 is not made or endorsed by them, and installing firmware is at your own risk.
+
+Idea proposed by [Melodee](https://github.com/keremimo/melodee) developer [Kerem Kilic](https://github.com/keremimo)
+
+
