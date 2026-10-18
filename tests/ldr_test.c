@@ -222,7 +222,8 @@ static void restore(const uint8_t *base)
 static int cut_case(const char *name, const uint8_t *base, int base_stub, int base_whole, uint32_t want_u)
 {
     static uint8_t head[0x4000];
-    uint32_t n, k, cnt[4] = {0, 0, 0, 0}, first_u = 0, last_u = 0, stub_done = 0, req, bad = 0, marker_free = 1, i;
+    uint32_t n, k, cnt[4] = {0, 0, 0, 0}, first_u = 0, last_u = 0, req, i;
+    volatile uint32_t stub_done = 0, bad = 0, marker_free = 1;   /* (live across the setjmp of the cuts) */
     uint32_t new_stub = has_marker(new_fl), commit = new_stub ? LDR_MARK_SEC : LDR_STUB_SEC;
     stub_result_t r;
     int rc;
@@ -293,7 +294,8 @@ int main(int argc, char **argv)
     size_t olen;
     uint8_t *old, head[0x4000];
     uint32_t ofo, nfo;
-    int bad = 0, rc;
+    volatile int bad = 0;                               /* (live across the setjmp of the cuts) */
+    int rc;
     if (argc < 3) { printf("usage: ldr_test OLD.fwsc NEW.fwsc [SAME_STUB.fwsc OTHER_OLD.fwsc [OLD_STUB.fwsc]]\n"); return 2; }
     old = load_logical(argv[1], &olen);
     logical = load_logical(argv[2], &logical_len);

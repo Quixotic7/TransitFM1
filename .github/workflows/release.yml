@@ -88,7 +88,7 @@ jobs:
           ls -l "$rel"
 
       - name: The host tests (the stub, step 1, the package, the loader's interruption model)
-        run: sh tests/run_tests.sh
+        run: PKG="build/release-$VERSION/transit-$VERSION.fwsc" sh tests/run_tests.sh
 
       - name: The web installer's tests, and the package against web/releases.json
         run: |

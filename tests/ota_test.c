@@ -62,7 +62,7 @@ static void host_reply(const uint8_t *msg, uint32_t n)       /* queue msg as a d
 /* ---- hooks ---- */
 static int ota_wire_send(const uint8_t *p, uint32_t n)
 {
-    uint8_t u[64], m[600];
+    uint8_t u[64] = {0}, m[600];
     uint32_t d, addr, len, i, s = 0;
     if (p[0] != 0xF0 || p[n - 1] != 0xF7) { printf("bad wire framing\n"); exit(1); }
     d = unpack7h(p + 1, n - 2, u);
