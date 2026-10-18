@@ -161,6 +161,22 @@ reaches past the app area is refused in step 1 (-4), in the loader (`LDR_ETOOLON
 page. Host tests: `OTA_LONG_PKG` (ota_test), `LDR_EXPECT_TOO_LONG` (ldr_test), `LONG_PKG` (test_installer), with a
 package of a 0x9D000 `flash.bin`.
 
+**0.1.3 on the unit** (2026-10-18, the owner, unit 5BD75BE3 after its Transporter recovery to V15;
+`transit-0.1.3.fwsc`, sha256 `d1b027d5…`), one firmware after another, every hop a success but the one refused:
+
+1. V15 → Baud Girl (Baud Girl's installer).
+2. Baud Girl → TransitFM1 (TransitFM1's live installer).
+3. TransitFM1 → Baud Girl: **refused gracefully** by Baud Girl's installer (TransitFM1's updater, `ota-FM-1_900`, is
+   "another custom firmware" to it), nothing written, TransitFM1 still running. The behaviour 0.1.2 broke.
+4. TransitFM1 → Sloop.
+5. Sloop → TransitFM1.
+6. TransitFM1 → ChoralRoot.
+7. ChoralRoot → Bubba Machine (the FM-1 Firmware Hub).
+
+Not covered by this run: a cut during a write from TransitFM1 on 0.1.3 (0.1's cable pull, from TransitFM1, was
+rescued; the write order is unchanged since), OCT- at power-on, and Bubba Machine → TransitFM1 (refused by Bubba's
+updater, which takes only M-VAVE's own package: go through V15).
+
 **0.1.1** (released 2026-10-17, `transit-0.1.1.fwsc`, sha256 `e074eabd…`): host-tested; on a unit still to do, first of all **V15 →
 TransitFM1**: the first boot shows "STAGING THE LOADER", then the TRANSIT screen with no red line; then OCT- at
 power-on gives three flashes and update mode; an install with a DAW sending clock to the FM-1 goes through.

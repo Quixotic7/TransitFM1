@@ -22,7 +22,9 @@ for you to install the next firmware. Three things make it a good stopover:
 
 > **0.1.2 was withdrawn:** it let Baud Girl's installer write over TransitFM1, and the unit was left dark (Baud
 > Girl's image is larger than TransitFM1's loader writes). **0.1.3** goes back to 0.1.1's behaviour and refuses such
-> packages itself. For Baud Girl, go through the official V15.
+> packages itself. For Baud Girl, go through the official V15. **0.1.3 on a unit** (2026-10-18): V15 → Baud Girl
+> → TransitFM1 → Baud Girl (refused gracefully, nothing written) → Sloop → TransitFM1 → ChoralRoot → Bubba
+> Machine, docs/SAFETY.md "0.1.3 on the unit".
 >
 > **0.1.1 replaced 0.1.** 0.1 faulted on its first boot after the official V15, while it staged its rescue
 > loader (the unit ended in the USB rescue, then the ROM's USB boot; seen on a unit, recovered with the
