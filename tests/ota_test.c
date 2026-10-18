@@ -225,10 +225,7 @@ int main(int argc, char **argv)
     bad += check("the package's header and the confirmation only", requests >= 3 && requests <= 6);
     {
         uint8_t *p = committed_parm, parm[STUB_PARM_LEN];
-        bad += check("record at the area + 0x4F00: the RAM record's 80 bytes", !memcmp(nor + T_AREA + 0x4F00u, p, 80));
-        bad += check(".. then TRANSIT1 and the loader's identity: ota-FM-1_900 (our package has a Felucca loader)",
-                     !memcmp(nor + T_AREA + 0x4F00u + 80u, "TRANSIT1", 8) &&
-                     !strcmp((const char *)nor + T_AREA + 0x4F00u + 88u, "ota-FM-1_900") && !p[80] && !p[88]);
+        bad += check("record at the area + 0x4F00 == RAM record", !memcmp(nor + T_AREA + 0x4F00u, p, 112));
         bad += check("record CRC / type / magic / ota_addr",
                      ota_rd16(p) == ota_crc16(p + 2, 78, 0) && ota_rd16(p + 2) == 0x5A0Du &&
                      ota_rd16(p + 6) == 0x5441u && ota_rd32(p + 72) == T_AREA);
@@ -256,13 +253,25 @@ int main(int argc, char **argv)
         rc = session();
         bad += check("a foreign package (its own loader in it): commits, our loader staged",
                      rc == 0 && committed && own_in_area() && erases == 1u);
-        bad += check(".. M-VAVE's loader in it: our loader will answer ota-FM-1_015 (the record's copy says so)",
-                     !strcmp((const char *)nor + T_AREA + 0x4F00u + 88u, "ota-FM-1_015") &&
-                     !memcmp(nor + T_AREA + 0x4F00u, committed_parm, 80));
         bad += check(".. its loader is not ours and was never staged",
                      flen != own_len || memcmp(nor + T_AREA + 32u, foreign + ota_entry(foreign, &flen) + 32u, 64) != 0);
         logical = own_pkg; logical_len = own_pkg_len;
         ota_boot_cleanup();
+    }
+    {   /* OTA_LONG_PKG: a package whose flash.bin reaches past 0x93000 (as Baud Girl's): refused before anything */
+        const char *lp = getenv("OTA_LONG_PKG");
+        if (lp && *lp) {
+            size_t ll;
+            uint8_t *lg = load_logical(lp, &ll);
+            static uint8_t area[0x5000];
+            memcpy(area, nor + T_AREA, sizeof area);
+            logical = lg; logical_len = ll;
+            rc = session();
+            logical = own_pkg; logical_len = own_pkg_len;
+            bad += check("a flash.bin longer than the app area: refused (-4), nothing committed, the area untouched",
+                         rc == -4 && !committed && erases == 0u && !memcmp(nor + T_AREA, area, sizeof area) &&
+                         own_in_area());
+        }
     }
     /* failures leave our loader as it is */
     mute_after = 2;

@@ -20,7 +20,11 @@ for you to install the next firmware. Three things make it a good stopover:
   at any point before that last sector leaves an FM-1 that comes back in update mode: switch it on, run the
   installer again.
 
-> **Status: 0.1.1 replaces 0.1.** 0.1 faulted on its first boot after the official V15, while it staged its rescue
+> **0.1.2 was withdrawn:** it let Baud Girl's installer write over TransitFM1, and the unit was left dark (Baud
+> Girl's image is larger than TransitFM1's loader writes). **0.1.3** goes back to 0.1.1's behaviour and refuses such
+> packages itself. For Baud Girl, go through the official V15.
+>
+> **0.1.1 replaced 0.1.** 0.1 faulted on its first boot after the official V15, while it staged its rescue
 > loader (the unit ended in the USB rescue, then the ROM's USB boot; seen on a unit, recovered with the
 > Transporter), and stopped taking the installer's messages while a DAW sent MIDI to the FM-1. 0.1.1 fixes both
 > (docs/SAFETY.md "0.1's two bugs"); the fixes are host-tested. From ChoralRoot, 0.1 worked on the unit: to other
@@ -57,9 +61,11 @@ written, no rescue code is left on the unit, so almost the whole one-to-two-minu
    - A red **LOADER NOT STAGED** line means TransitFM1 could not set up its rescue. It then refuses updates.
      Don't continue: report it.
 3. **Leaving.** Open the installer of the firmware you want and install it. To that installer the FM-1 is an FM-1
-   on V15, and from 0.1.2 its updater answers as the installer expects: `ota-FM-1_015` for a package with M-VAVE's
-   loader (V15, Baud Girl), `ota-FM-1_900` for a Felucca-family one. To go back to stock, install M-VAVE's
-   `FM-1.fwsc` (the web installer's "Install a package file from here" takes it, or any other `.fwsc`).
+   on V15. To go back to stock, install M-VAVE's `FM-1.fwsc` (the web installer's "Install a package file from
+   here" takes it, or any other `.fwsc`).
+   - **Baud Girl: go through the official V15.** Its image is larger than the app area TransitFM1's loader writes;
+     only M-VAVE's loader installs it whole. Install V15 from TransitFM1, then Baud Girl with its own installer.
+     TransitFM1 refuses such a package, and Baud Girl's installer refuses TransitFM1's updater, both rightly.
 4. **If the install is cut off,** switch the FM-1 off and on. You'll see three short flashes of the key lights, a
    black screen, and `ota-FM-1` ("Felucca Update") over USB. Open the installer again and run the same install:
    it finishes the write. An installer that knows Felucca's update mode resumes it by itself. That covers ChoralRoot,

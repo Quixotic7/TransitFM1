@@ -4,7 +4,7 @@
 // ChoralRoot carries it), the package reading fm1pkg.js. Everything that decides is here and runs without a page
 // (web/test_installer.mjs drives it against a fake FM-1); the DOM wiring is at the end, in the browser only.
 import { Updater, classifyFirmware } from "./fm1ota.js";
-import { productOf, logicalImage, sha256hex, STOCK_V15_SHA256 } from "./fm1pkg.js";
+import { Package, productOf, logicalImage, sha256hex, STOCK_V15_SHA256 } from "./fm1pkg.js";
 
 export const IDENTITY = "FM-1_015";               // TransitFM1's (tools/build.py PRODUCT): the official V15's
 const INFO_REQ = [0xF0, 0x7D, 0x46, 0x4C, 0x01, 0xF7];   // the backup protocol's INFO (Felucca, ChoralRoot, ...)
@@ -62,6 +62,10 @@ export async function packageFrom(bytes, label = null) {
   let product;
   try { product = productOf(bytes); } catch (e) { throw new Error("This is not an FM-1 firmware package (.fwsc)."); }
   if (!/^FM-1_\d+$/.test(product)) throw new Error(`This package is not for the FM-1 (its identity is ${product || "empty"}).`);
+  let flashSize = 0;
+  try { flashSize = new Package(bytes).flashSize; } catch (_) { /* (a layout the reader does not know: the FM-1 decides) */ }
+  if (flashSize > 0x93000)   // TransitFM1 writes the app area only (firmware/src/ota.c refuses it too): Baud Girl's grows past it
+    throw new Error("This firmware is larger than TransitFM1 can install (its image reaches past the app area, as Baud Girl's does). Install the official V15 first, then this firmware with its own installer.");
   const official = await sha256hex(bytes) === STOCK_V15_SHA256;
   return { product, image: logicalImage(bytes), official,
            label: label || (official ? "the official V15 (M-VAVE's FM-1.fwsc)" : `the package ${product}`) };

@@ -320,36 +320,14 @@ int main(int argc, char **argv)
         ota_wr16(r, ota_crc16(r + 2, 78, 0));
         memcpy(nor + T_OTA + 0x4F00u, r, sizeof r);
     }
-    {   /* the identity the loader answers (ldr_pick_identity), from the flash copy of the record step 1 left */
-        uint8_t r[112];
-        char id[16];
-        int okid = 1;
-        const char *cases[][2] = {{"ota-FM-1_015", "ota-FM-1_015"}, {"ota-FM-1_900", "ota-FM-1_900"},
-                                  {"ota-FM-1_0155", "ota-FM-1_900"}, {"ota-FM-1_0x5", "ota-FM-1_900"},
-                                  {"ota-SMK-37_015", "ota-FM-1_900"}};
-        uint32_t c;
-        for (c = 0; c < sizeof cases / sizeof cases[0]; c++) {
-            memset(r, 0, sizeof r);
-            r[2] = 0x0D; r[3] = 0x5A; r[4] = 0x01; r[5] = 0x5A; r[6] = 0x41; r[7] = 0x54;
-            memcpy(r + 8, "ota-FM-1_015", 12);
-            ota_wr16(r, ota_crc16(r + 2, 78, 0));
-            memcpy(r + OTA_ID_TAG_OFF, "TRANSIT1", 8);
-            memcpy(r + OTA_ID_OFF, cases[c][0], strlen(cases[c][0]));
-            ldr_pick_identity(r, id);
-            okid &= !strcmp(id, cases[c][1]);
-        }
-        memset(r + OTA_ID_TAG_OFF, 0, 32);                            /* ChoralRoot's record: no tag */
-        ldr_pick_identity(r, id);
-        okid &= !strcmp(id, "ota-FM-1_900");
-        memcpy(r + OTA_ID_TAG_OFF, "TRANSIT1", 8);
-        memcpy(r + OTA_ID_OFF, "ota-FM-1_015", 12);
-        r[20] ^= 1;                                                   /* the record's CRC broken */
-        ldr_pick_identity(r, id);
-        okid &= !strcmp(id, "ota-FM-1_900");
-        memset(r, 0xFF, sizeof r);                                    /* no record (OCT- at power-on) */
-        ldr_pick_identity(r, id);
-        okid &= !strcmp(id, "ota-FM-1_900");
-        bad += check("the loader's identity: step 1's choice when tagged and whole, else ota-FM-1_900", okid);
+    if (getenv("LDR_EXPECT_TOO_LONG")) {             /* NEW's flash.bin reaches past the app area (Baud Girl's): refused */
+        static uint8_t before[0x100000];
+        memcpy(before, nor, sizeof before);
+        rc = ldr_session();
+        bad += check("a flash.bin longer than the app area: refused, nothing erased or written",
+                     rc == LDR_ETOOLONG && erases == 0 && !memcmp(nor, before, sizeof before));
+        printf("%s\n", bad ? "LOADER TEST FAILED" : "loader test passed");
+        return bad != 0;
     }
     rc = ldr_session();
     printf("  rc %d, %u requests, %u sector erases\n", rc, requests, erases);

@@ -34,15 +34,6 @@
 #define OTA_AREA 0x000E0000u                     /* staged loader, 5 x 4 KiB */
 #define OTA_AREA_LEN 0x5000u
 #define OTA_RES (OTA_AREA + OTA_AREA_LEN - 0x100u)  /* 0xE4F00 = 4K boundary - 256: SPL scan */
-/* The loader's identity for this install, in the flash copy of the record beyond the 80 bytes the SPL reads: +80
- * "TRANSIT1", +88 the identity, NUL-terminated (ota_session writes it, ldr_core.c ldr_pick_identity reads it). An
- * installer that guards against other firmwares refuses an updater that answers 700 or more (Baud Girl's: it expects
- * M-VAVE's updater, whose loader its package carries), and the Felucca-family installers resume only "ota-FM-1_9NN":
- * so the package decides, by the loader it carries */
-#define OTA_ID_TAG_OFF 80u
-#define OTA_ID_OFF 88u
-#define OTA_ID_FELUCCA "ota-FM-1_900"            /* a package with a Felucca-family loader (and the default) */
-#define OTA_ID_MVAVE "ota-FM-1_015"              /* any other package (M-VAVE's loader: V15, Baud Girl, Bubba Machine) */
 #define OTA_LDR_HCRC 0xEBAAu                     /* official update loader (usb_hid_ota.bin) */
 #define OTA_LDR_DCRC 0x5881u
 #define OTA_LDR_LEN 0x4DE1u
@@ -146,17 +137,11 @@ static int ota_send_msg(uint32_t cmd, const uint8_t *body, uint32_t n)   /* n <=
 
 static void ota_reply_identity(void)
 {
-#ifdef OTA_IDENTITY_TEXT
-    const char *ID = OTA_IDENTITY_TEXT;          /* the loader: chosen at its start (ldr_core.c ldr_pick_identity) */
-#else
-    static const char ID[] = FELUCCA_ID;         /* the app and its rescue mode */
-#endif
+    static const char ID[] = FELUCCA_ID;         /* the app, its rescue mode and the loader each answer their own */
     uint8_t id[27];
-    uint32_t i, end = 0;
-    while (end < sizeof id && ID[end])
-        end++;
+    uint32_t i;
     for (i = 0; i < sizeof id; i++)
-        id[i] = i < end ? (uint8_t)ID[i] : 0;
+        id[i] = i < sizeof ID - 1u ? (uint8_t)ID[i] : 0;
     ota_send_msg(0x11, id, sizeof id);
 }
 
@@ -386,26 +371,22 @@ static int ota_boot_stage(void)
 /* step 1, TransitFM1's: the package is well formed and has a flash.bin the size of the app area; our own loader is
  * staged (it writes any package: firmware/loader/ldr_core.c); the host confirms. The package's own loader is never
  * staged: ours keeps the boot stub's rescue alive through the write. 0 = host said success */
-static const char *ota_ldr_id = OTA_ID_FELUCCA;   /* this install's loader identity (ota_stage), for the record */
-
 static int ota_stage(void)
 {
     static uint8_t hdr[0x400], b[512];
-    uint32_t i, ota_off, ota_len, fl_off, fl_len, fl_crc, own = 0;
+    uint32_t i, ota_off, ota_len, fl_off, fl_len, fl_crc;
     int rc;
     ota_show(1, 0);
     if ((rc = ota_ufw(hdr, &fl_off, &fl_len, &ota_off, &ota_len, &fl_crc)) != 0)
         return rc;
     if (!fl_off || fl_len < 0x93000u)
         return -3;
-    /* which loader the package carries says which updater its installer expects (OTA_ID_FELUCCA / OTA_ID_MVAVE) */
-    if (ota_off) {
-        if (ota_read(ota_off, b, 512))
-            return -6;
-        for (i = 0x48; i + 16u <= 0x48u + 64u && !own; i++)    /* first LZ4 literals: crt0_ldr.S */
-            own = ota_memeq(b + i, (const uint8_t *)"FELUCCA-LOADER-1", 16);
-    }
-    ota_ldr_id = !ota_off || own ? OTA_ID_FELUCCA : OTA_ID_MVAVE;
+    /* a flash.bin longer than the app area (Baud Girl's grows past 0x93000 when its app outgrows the slot): our
+     * loader writes the app area only, so it would leave a truncated firmware with its sector 0x4000 committed: a
+     * dark unit (0.1.2 did that, 2026-10-17). Refused before anything is staged; such a firmware is installed from
+     * the official V15, whose updater stages the package's own loader */
+    if (fl_len > 0x93000u)
+        return -4;
     ota_show(3, 0);
     if (!ota_own_staged() && (rc = ota_restage()) != 0)
         return rc;
@@ -428,7 +409,7 @@ static void ota_unstage(void)
 /* returns only when nothing was committed (refused, failed, or dry run) */
 static int ota_session(void)
 {
-    static uint8_t parm[112], copy[112];
+    static uint8_t parm[112];
     uint8_t back[112];
     uint32_t i;
     int rc;
@@ -448,12 +429,6 @@ static int ota_session(void)
         parm[8 + i] = (uint8_t)"ota-FM-1_015"[i];    /* the loader's own USB identity */
     ota_wr32(parm + 72, OTA_AREA);
     ota_wr16(parm, ota_crc16(parm + 2, 78, 0));
-    for (i = 0; i < sizeof copy; i++)               /* the flash copy: the record, then the loader's identity */
-        copy[i] = i < OTA_ID_TAG_OFF ? parm[i] : 0;
-    for (i = 0; i < 8u; i++)
-        copy[OTA_ID_TAG_OFF + i] = (uint8_t)"TRANSIT1"[i];
-    for (i = 0; ota_ldr_id[i] && OTA_ID_OFF + i < sizeof copy - 1u; i++)
-        copy[OTA_ID_OFF + i] = (uint8_t)ota_ldr_id[i];
 #if FELUCCA_OTA_DRYRUN
     ota_show(9, 1);                                 /* 1 = dry run complete */
     return 1;
@@ -466,8 +441,8 @@ static int ota_session(void)
      * the loader kept from the install before stays staged, and a record a cut session left there would not take
      * another write over it */
     if (!FELUCCA_OTA_RAMONLY && (ota_erase(OTA_AREA + OTA_AREA_LEN - 0x1000u) ||
-        ota_prog(OTA_RES, copy, sizeof copy) || ota_fread(OTA_RES, back, sizeof back) ||
-        !ota_memeq(back, copy, sizeof copy))) {
+        ota_prog(OTA_RES, parm, sizeof parm) || ota_fread(OTA_RES, back, sizeof back) ||
+        !ota_memeq(back, parm, sizeof parm))) {
         ota_erase(OTA_AREA + OTA_AREA_LEN - 0x1000u);  /* the record's sector only (no loader byte there) */
         ota_show(9, -14);
         return -14;

@@ -3,6 +3,18 @@
   "repo": "https://github.com/Quixotic7/TransitFM1",
   "releases": [
     {
+      "version": "0.1.3",
+      "date": "2026-10-17",
+      "tag": "v0.1.3",
+      "sha256": "d1b027d5fcafc374ff174bbd5f3b6dac7686554f5a3f44c04cc4d30cc3213baa",
+      "notes": [
+        "Replaces 0.1.2, which was withdrawn: it let Baud Girl's installer write over TransitFM1 and left the FM-1 dark.",
+        "Refuses any firmware larger than the app area it can write (as Baud Girl's): install the official V15 first, then that firmware.",
+        "Includes 0.1.1's fixes: the safe start after the official V15, and installs no longer stalled by a DAW's MIDI.",
+        "ChoralRoot's boot stub in front of it, and the next firmware written by its own loader, first sector last: a write cut off at any other point comes back in update mode."
+      ]
+    },
+    {
       "version": "0.1.1",
       "date": "2026-10-17",
       "tag": "v0.1.1",

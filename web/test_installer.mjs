@@ -164,5 +164,11 @@ if (v15Path) {   // TransitFM1's loader writing M-VAVE's V15 answers ota-FM-1_01
 t = await run({ identity: "FM-1_101", name: "FM-1+VA" });
 ok(t.r === "refused" && t.dev.upgrades === 0, "over Baud Girl (FM-1_101, a version the table does not know): refused, nothing sent");
 
+if (process.env.LONG_PKG) {   // a flash.bin past the app area (as Baud Girl's): refused before the FM-1 is asked anything
+  let e = "";
+  try { await packageFrom(new Uint8Array(readFileSync(process.env.LONG_PKG))); } catch (x) { e = x.message; }
+  ok(/larger than TransitFM1 can install/.test(e) && /official V15 first/.test(e), "a package past the app area: refused, go through V15");
+}
+
 console.log(fails ? `installer: ${fails} of ${checks} FAILED` : `installer tests passed (${checks})`);
 process.exit(fails ? 1 : 0);

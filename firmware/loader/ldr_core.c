@@ -10,7 +10,8 @@
  *   2. checks that the package's app area decrypts with THIS chip's key (taken from isd_config.ini in the
  *      device's own flash head), so a package for another key is refused before anything is erased;
  *   3. writes ONLY the app area [0x4000, 0x93000), sector by sector, skipping sectors that are already equal,
- *      and verifies each one; the flash head (SPL, isd_config) is never written;
+ *      and verifies each one; the flash head (SPL, isd_config) is never written. A package whose flash.bin
+ *      reaches past 0x93000 is refused before anything is written: its firmware would be committed truncated;
  *   4. checks the CRC16 the package stores for flash.bin against everything it was served (the head too, which
  *      it never writes; a mismatch: up to two more passes, rewriting what differs), asks 0xF0000000 ("success"),
  *      then invalidates the update record (RAM and flash) so the SPL boots the new app, and resets.
@@ -104,6 +105,7 @@ static int ldr_chip_key(uint32_t *key)
 #define LDR_ENOFIN (-13)                        /* no "success" from the host */
 #define LDR_EFLASH (-14)                        /* another flash chip: nothing written, the records dropped */
 #define LDR_ENOERASE (-15)                      /* the marker's sector does not erase: nothing else was touched */
+#define LDR_ETOOLONG (-16)                      /* flash.bin reaches past the app area: refused, nothing written */
 
 /* the update records (RAM, and flash: a 4K boundary - 256) go: the SPL boots the app */
 static void ldr_records_drop(void)
@@ -193,36 +195,18 @@ static int ldr_write(uint32_t s, const uint8_t *sec, uint8_t *cur, uint32_t *ope
     return LDR_EVERIFY;
 }
 
-/* the identity this loader answers (ota.c OTA_ID_*): the one TransitFM1's step 1 left beside the flash copy of the
- * record (rec: OTA_RES, 112 bytes), when that copy is whole and tagged; else ota-FM-1_900, the update mode the
- * Felucca-family installers resume. Also after a cut, since the record stays until the write is done; a rescue
- * with no install behind it (OCT- at power-on) finds none */
-static void ldr_pick_identity(const uint8_t *rec, char *out)
-{
-    uint32_t i, n = 0, ok;
-    ok = ota_rd16(rec) && ota_rd16(rec) == ota_crc16(rec + 2, 78, 0) && ota_rd16(rec + 2) == 0x5A0Du &&
-         ota_rd16(rec + 6) == 0x5441u && ota_memeq(rec + OTA_ID_TAG_OFF, (const uint8_t *)"TRANSIT1", 8) &&
-         ota_memeq(rec + OTA_ID_OFF, (const uint8_t *)"ota-FM-1_", 9);
-    if (ok) {
-        while (OTA_ID_OFF + 9u + n < 112u && rec[OTA_ID_OFF + 9u + n] >= '0' && rec[OTA_ID_OFF + 9u + n] <= '9')
-            n++;
-        ok = n == 3u && rec[OTA_ID_OFF + 12u] == 0;
-    }
-    for (i = 0; i < 13u; i++)
-        out[i] = ok ? (char)rec[OTA_ID_OFF + i] : OTA_ID_FELUCCA[i];
-    out[12] = 0;
-}
-
 static int ldr_pass(void)
 {
     static uint8_t hdr[0x400], sec[0x1000], cur[0x1000], held[0x1000];
-    uint32_t i, k, fl_off, fl_size, ota_off, ota_len, key, s, n, want, crc = 0, done = 0, open = 0, commit;
+    uint32_t i, k, fl_off, fl_size, ota_off, ota_len, key, s, want, crc = 0, done = 0, open = 0, commit;
     int rc, mark;
     /* 1. UFW header + entry list (ota.c) */
     if ((rc = ota_ufw(hdr, &fl_off, &fl_size, &ota_off, &ota_len, &want)) != 0)
         return rc;
     if (!fl_off || fl_size < LDR_APP_HI)
         return -3;
+    if (fl_size > LDR_APP_HI)                            /* more than this loader writes: a truncated firmware would */
+        return LDR_ETOOLONG;                             /* be committed (ota.c ota_stage refuses it first) */
     /* 2. the package's app area must decrypt with this chip's key */
     if ((rc = ldr_chip_key(&key)) != 0)
         return -40 + rc;
@@ -255,12 +239,6 @@ static int ldr_pass(void)
             return rc;
         done += 0x1000u;
         ldr_progress(done, LDR_APP_HI - LDR_APP_LO);
-    }
-    for (s = LDR_APP_HI; s < fl_size; s += n) {          /* (a flash.bin longer than the app area) */
-        n = fl_size - s < 512u ? fl_size - s : 512u;
-        if (ota_read(fl_off + s, sec, n))
-            return -7;
-        crc = ota_crc16(sec, n, crc);
     }
     /* 4. the whole package arrived as it was built: only now the commit sector */
     if (crc != want)

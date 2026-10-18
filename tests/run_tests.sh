@@ -26,15 +26,19 @@ $CC $SAN -o "$H/stub_test" tests/stub_test.c
 "$H/stub_test"
 echo "== the package builder: the marker, sector 0x4000 the same for every body"
 python3 tests/stub_pkg_test.py
-echo "== step 1: our own loader staged, kept, restaged (firmware/src/ota.c)"
+echo "== a package whose flash.bin reaches past the app area (as Baud Girl's grows): made for the refusals below"
+python3 tools/make_stub_test_pkg.py other-body --board smk37 --product FM-1_015 --app build/transit.bin \
+    --ota build/loader/ota.bin -o "$H/stub-test-long.fwsc" >/dev/null
+echo "== step 1: our own loader staged, kept, restaged; the long package refused (firmware/src/ota.c)"
 $CC $SAN -o "$H/ota_test" tests/ota_test.c
-"$H/ota_test" "$PKG" ${V15_PKG:+"$V15_PKG"}
+OTA_LONG_PKG="$H/stub-test-long.fwsc" "$H/ota_test" "$PKG" ${V15_PKG:+"$V15_PKG"}
 echo "== the loader's order: a power cut after every erase and every programmed page (firmware/loader/ldr_core.c)"
 for m in other-body old-stub no-stub no-stub-other; do
     python3 tools/make_stub_test_pkg.py "$m" --app build/transit.bin --ota build/loader/ota.bin --product FM-1_015 \
         -o "$H/stub-test-$m.fwsc" >/dev/null
 done
 $CC -O2 -o "$H/ldr_test" tests/ldr_test.c
+LDR_EXPECT_TOO_LONG=1 "$H/ldr_test" "$PKG" "$H/stub-test-long.fwsc"
 "$H/ldr_test" "$H/stub-test-no-stub.fwsc" "$PKG" "$H/stub-test-other-body.fwsc" \
     "$H/stub-test-no-stub-other.fwsc" "$H/stub-test-old-stub.fwsc"
 if [ -n "$V15_PKG" ]; then

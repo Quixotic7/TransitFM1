@@ -10,7 +10,7 @@ or the cable is cut during that write, the FM-1 should come back in update mode,
 | the boot stub: flash 0x4120..0x4FFF, where the SPL jumps | `firmware/stub/` | ChoralRoot, byte for byte (version 3, sha256 `baee55ed…`) |
 | the commit marker, flash 0x91FE0: magic, the body's length and CRC-32, its own CRC | `tools/fm1pkg_make.py` | ChoralRoot |
 | the CRC compensation that keeps sector 0x4000 the same bytes in every build | `tools/fm1pkg_make.py` | ChoralRoot |
-| the update loader, staged at 0xE0000, USB "Felucca Update", `ota-FM-1_900` or `_015` (below) | `firmware/loader/` | Felucca / SLOOP, with ChoralRoot's order and **TransitFM1's** |
+| the update loader, staged at 0xE0000, USB "Felucca Update", `ota-FM-1_900` | `firmware/loader/` | Felucca / SLOOP, with ChoralRoot's order and **TransitFM1's** |
 | step 1: what the running firmware does when an installer asks for an update | `firmware/src/ota.c` | Felucca / SLOOP / ChoralRoot, **TransitFM1's** step 1 |
 | the app: a screen, USB-MIDI for the updater, the boot guard | `firmware/src/` | Dinghy, without the sound |
 
@@ -59,10 +59,8 @@ differs and then commits. The flash head (0x0000..0x3FFF, the SPL) is never writ
 | what | answers | why |
 | --- | --- | --- |
 | the running app (and its USB rescue) | `FM-1_015`, USB device "FM-1" | the official V15's: every installer that guards against other firmwares lets an install over V15 through |
-| the update loader, writing a package with a Felucca-family loader (ChoralRoot, Felucca, Dinghy, TransitFM1), and in a rescue with no install behind it | `ota-FM-1_900`, USB device "Felucca Update" | the update mode the Felucca-family installers and the FM-1 Firmware Hub resume after a cut (they resume only `ota-FM-1_9NN`) |
-| the update loader, writing a package with M-VAVE's loader (the official V15, Baud Girl, Bubba Machine) | `ota-FM-1_015` (0.1.2 on) | the updater those installers expect: Baud Girl's refuses an updater that answers 700 or more as "another custom firmware" (its `ota.js` step 2), and did so with 0.1 / 0.1.1 |
-| the update record (RAM 0x01C7FD88, and its first 80 bytes in flash at 0xE4F00) | `ota-FM-1_015` | the same bytes as ChoralRoot's record, which the stub writes for its own hand-over |
-| behind the flash copy (0xE4F50: "TRANSIT1", 0xE4F58: the loader's identity) | `ota-FM-1_900` / `_015` | step 1's choice, by the loader the package carries (`ota.c ota_stage`); the loader reads it at its start, also after a cut (the record stays until the write is done: `ldr_core.c ldr_pick_identity`). The SPL reads 80 bytes; nothing else reads these |
+| the update loader | `ota-FM-1_900`, USB device "Felucca Update" | the update mode the Felucca-family installers and the FM-1 Firmware Hub resume after a cut (they resume only `ota-FM-1_9NN`). Also what an installer that needs M-VAVE's updater recognises and refuses, rightly: Baud Girl's (below) |
+| the update record (RAM 0x01C7FD88, flash 0xE4F00) | `ota-FM-1_015` | the same bytes as ChoralRoot's record, which the stub writes for its own hand-over |
 
 Dinghy's USB rescue (the boot guard's) answered `FM-1_000`, which ChoralRoot's installer refuses as "Sloop's
 rescue mode". TransitFM1's answers `FM-1_015` too.
@@ -85,10 +83,15 @@ package; the loader check against the stub's on 20000 damaged copies) pass too.
 
 ## Limits
 
-- **Baud Girl** (FM-1+VA, closed source, its own installer at baudgirl.com): from TransitFM1 0.1.2 its installer
-  installs it (0.1 / 0.1.1: refused in step 2, "another custom firmware"); after a cut, finish with Baud Girl's
-  installer, which knows `ota-FM-1_015`. Into TransitFM1 from Baud Girl: not offered (its identity `FM-1_101` is
-  one no table here knows); go through V15.
+- **Baud Girl** (FM-1+VA, closed source, its own installer at baudgirl.com): **go through the official V15**, and
+  install Baud Girl from there with its installer. Its package's `flash.bin` reaches past the app area when its app
+  outgrows the stock slot (its `fwsc.js` grows it), so only M-VAVE's loader, which writes the whole `flash.bin`,
+  can install it. TransitFM1's loader writes the app area only: Baud Girl's installer refuses TransitFM1's updater
+  (`ota-FM-1_900`, "another custom firmware"), and 0.1.3 refuses such a package itself, in step 1, in the loader and
+  on the page. Into TransitFM1 from Baud Girl: not offered (its identity `FM-1_101` is one no table here knows); go
+  through V15 too.
+- **Any package whose `flash.bin` reaches past 0x93000** is refused (0.1.3), before anything is written: the same
+  reason. Go through V15.
 - **From Bubba Machine there is no way in.** Its updater accepts only a package with M-VAVE's own update loader and
   the unit's boot head (its `hal/fm1/fm1_update.c`). Go to V15 with Bubba's installer first.
 - **Arriving is as safe as the firmware you leave.** The write into TransitFM1 is done by the loader your current
@@ -144,10 +147,19 @@ and the kept loader working on a unit. Bubba Machine installed; over it the web 
 accepts only M-VAVE's own package) and said to go to V15 first. **The hop from V15 back to TransitFM1 met bug 1**
 (above): TRANSIT USB RESCUE, then the ROM's USB boot, recovered with the Transporter.
 
-**0.1.2**: the loader answers `ota-FM-1_015` when it writes a package with M-VAVE's loader (above, "The
-identities"), so that Baud Girl's installer installs from TransitFM1 (the owner, 2026-10-17: with 0.1 it could
-not). On a unit still to do: TransitFM1 → Baud Girl with Baud Girl's installer; TransitFM1 → V15; TransitFM1 →
-ChoralRoot, and a cut in each, finished from update mode.
+**0.1.2 bricked a unit (2026-10-17, withdrawn the same day).** 0.1.2's loader answered `ota-FM-1_015` when
+writing a package with M-VAVE's loader, so that Baud Girl's installer would install from TransitFM1. That took
+Baud Girl's installer past its own guard: it refuses a Felucca-family updater because such a loader writes the app
+area only, and Baud Girl's image is longer (its `ota.js`: "it writes only the start of our image ... the FM-1 would
+not start"). It was right. On the owner's unit: TransitFM1 0.1.2 from the site, then Baud Girl with Baud Girl's
+installer: TransitFM1's loader wrote 0x4000..0x92FFF, the package CRC held, sector 0x4000 was committed, and the
+unit was left with a truncated Baud Girl and no stub: dark, hard bricked (the Transporter). The site went back to
+0.1.1 within the hour.
+
+**0.1.3**: the loader answers `ota-FM-1_900` again (0.1.1's step 1 and loader), and a package whose `flash.bin`
+reaches past the app area is refused in step 1 (-4), in the loader (`LDR_ETOOLONG`, before any erase) and on the
+page. Host tests: `OTA_LONG_PKG` (ota_test), `LDR_EXPECT_TOO_LONG` (ldr_test), `LONG_PKG` (test_installer), with a
+package of a 0x9D000 `flash.bin`.
 
 **0.1.1** (released 2026-10-17, `transit-0.1.1.fwsc`, sha256 `e074eabd…`): host-tested; on a unit still to do, first of all **V15 →
 TransitFM1**: the first boot shows "STAGING THE LOADER", then the TRANSIT screen with no red line; then OCT- at

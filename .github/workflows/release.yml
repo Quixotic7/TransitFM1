@@ -93,7 +93,7 @@ jobs:
       - name: The web installer's tests, and the package against web/releases.json
         run: |
           set -euo pipefail
-          node web/test_installer.mjs "build/release-$VERSION/transit-$VERSION.fwsc"
+          LONG_PKG=build/host/stub-test-long.fwsc node web/test_installer.mjs "build/release-$VERSION/transit-$VERSION.fwsc"
           python3 - "$VERSION" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
