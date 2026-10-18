@@ -1,0 +1,175 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Build a TransitFM1 release from source and publish it.
+#   push of a tag vX.Y   -> build (./build.sh --release X.Y), run the host and installer tests, create or update the
+#                           GitHub release vX.Y with the package, SHA256SUMS and every licence, then start pages.yml
+#                           when web/releases.json lists X.Y first (the site installs that one)
+#   workflow_dispatch    -> build and test only; build/release-X.Y is a workflow artifact
+# On ubuntu (x86-64) tools/build.py runs the JieLi toolchain natively; the three SDK files are tools/sdk (Apache-2.0).
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, e.g. 0.1 (X.Y, X.Y.Z or X.Y-suffix). Builds an artifact; no release."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = push ]; then v="${GITHUB_REF_NAME#v}"; else v="$INPUT_VERSION"; fi
+          if [[ ! "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "::error::version '$v' is not X.Y, X.Y.Z or X.Y-suffix; tags are vX.Y"
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          {
+            echo "VERSION=$v"
+            echo "JIELI_TOOLCHAIN=$HOME/.jieli/toolchain"
+            echo "AC79_SDK=$GITHUB_WORKSPACE/tools/sdk"
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+
+      - name: Cache the JieLi toolchain
+        id: toolchain-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.jieli
+          key: jieli-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/get_toolchain.sh') }}
+
+      - name: Fetch the JieLi toolchain (pkgman.jieliapp.com)
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        run: sh tools/get_toolchain.sh "$HOME/.jieli"
+
+      - name: Build (./build.sh --release)
+        run: |
+          set -euo pipefail
+          ulimit -n 8192 || true          # the JieLi linker opens many files
+          "$JIELI_TOOLCHAIN/pi32v2/bin/clang" --version | head -1
+          ./build.sh --release "$VERSION"
+          rel="build/release-$VERSION"
+          for f in "transit-$VERSION.fwsc" SHA256SUMS LICENSE LICENSING.md LICENSES/Apache-2.0.txt LICENSES/OFL-1.1-Terminus.txt; do
+            if [ ! -s "$rel/$f" ]; then echo "::error::$rel/$f is missing"; exit 1; fi
+          done
+          (cd "$rel" && sha256sum -c SHA256SUMS && zip -q -r LICENSES.zip LICENSES)
+          ls -l "$rel"
+
+      - name: The host tests (the stub, step 1, the package, the loader's interruption model)
+        run: sh tests/run_tests.sh
+
+      - name: The web installer's tests, and the package against web/releases.json
+        run: |
+          set -euo pipefail
+          node web/test_installer.mjs "build/release-$VERSION/transit-$VERSION.fwsc"
+          python3 - "$VERSION" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          v = sys.argv[1]
+          sha = hashlib.sha256(Path(f"build/release-{v}/transit-{v}.fwsc").read_bytes()).hexdigest()
+          rel = next((r for r in json.loads(Path("web/releases.json").read_text())["releases"] if r["version"] == v), None)
+          if rel is None:
+              print(f"::notice::{v} is not in web/releases.json: the site will not offer it (sha256 {sha})")
+          elif rel["sha256"] != sha:
+              sys.exit(f"::error::built here, transit-{v}.fwsc has sha256 {sha}; web/releases.json says {rel['sha256']}")
+          else:
+              print(f"web/releases.json: {v}'s sha256 matches the build")
+          PY
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: transit-${{ env.VERSION }}
+          path: build/release-${{ env.VERSION }}/
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write                 # create the release and upload its assets
+      actions: write                  # start pages.yml (a release made with GITHUB_TOKEN starts no workflow itself)
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            web/releases.json
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: transit-${{ needs.build.outputs.version }}
+          path: release
+
+      - name: The assets and the notes
+        run: |
+          set -euo pipefail
+          mkdir assets
+          for f in "transit-$VERSION.fwsc" SHA256SUMS LICENSE LICENSING.md LICENSES.zip; do cp "release/$f" assets/; done
+          ls -l assets
+          sed "s/@VERSION@/$VERSION/g" > release-body.md <<'EOT'
+          TransitFM1 @VERSION@ for the M-VAVE FM-1: a tiny firmware to stop at between two others. It answers every installer as the official V15 (identity FM-1_015), carries ChoralRoot's boot stub, and writes the next firmware with its own update loader, the new firmware's first sector last: an install cut off at any other point comes back in update mode.
+
+          Install from the browser at https://quixotic7.github.io/TransitFM1/ (Chrome or Edge, the FM-1 connected by USB), or with `python3 tools/fm1_install.py transit-@VERSION@.fwsc`. Read docs/SAFETY.md first: this release has been tested on a computer, not yet on an FM-1.
+
+          The package holds three JieLi AC79 SDK files (Apache-2.0) and the Terminus font (OFL-1.1); `LICENSE` (GPL-3.0), `LICENSING.md` and `LICENSES.zip` carry every licence. `SHA256SUMS` lists the package. Installing firmware is at your own risk.
+          EOT
+
+      - name: Create or update the release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: TransitFM1 ${{ needs.build.outputs.version }}
+          prerelease: ${{ contains(needs.build.outputs.version, '-') }}
+          fail_on_unmatched_files: true
+          files: assets/*
+          body_path: release-body.md
+
+      - name: Publish the site (pages.yml), when web/releases.json lists this version first
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          first=$(python3 -c 'import json; print(json.load(open("web/releases.json"))["releases"][0]["version"])')
+          if [ "$first" != "$VERSION" ]; then
+            echo "::notice::web/releases.json lists $first first, not $VERSION: the site stays as it is"
+            exit 0
+          fi
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f version="$VERSION" -f ref="$GITHUB_REF_NAME"
+          echo "::notice::pages.yml started for $VERSION"

@@ -45,17 +45,20 @@ written, no rescue code is left on the unit, so almost the whole one-to-two-minu
 
 ## Using it
 
-1. **Getting there.** Install `transit-X.Y.fwsc` with the installer of the firmware you are on now.
-   `tools/fm1_install.py` here, ChoralRoot's `tools/fm1_install.py PACKAGE` and any installer that takes a
-   Felucca-family package will do. From the official V15 it's the same: TransitFM1 installs like any custom
-   firmware.
+1. **Getting there.** The web installer: **<https://quixotic7.github.io/TransitFM1/>** (Chrome or Edge, the FM-1
+   connected by USB): **Install TransitFM1**. It checks the package against its published SHA-256, says what the
+   FM-1 runs, refuses the firmwares an install has bricked from (Sloop, the Felucca betas, unless you tick the risk
+   box) and Bubba Machine, and finishes an install that was cut off. Or `python3 tools/fm1_install.py
+   transit-X.Y.fwsc`, ChoralRoot's `tools/fm1_install.py PACKAGE`, or any installer that takes a Felucca-family
+   package. From the official V15 it's the same: TransitFM1 installs like any custom firmware.
    - **Not from Bubba Machine.** Its updater only accepts M-VAVE's own package. Go back to V15 with Bubba's
      installer first.
 2. **The screen** says `TRANSIT`, its version, "READY FOR THE NEXT FIRMWARE" and "AS V15 (FM-1_015)".
    - A red **LOADER NOT STAGED** line means TransitFM1 could not set up its rescue. It then refuses updates.
      Don't continue: report it.
 3. **Leaving.** Open the installer of the firmware you want and install it. To that installer the FM-1 is an FM-1
-   on V15. To go back to stock, install M-VAVE's `FM-1.fwsc`.
+   on V15. To go back to stock, install M-VAVE's `FM-1.fwsc` (the web installer's "Install a package file from
+   here" takes it, or any other `.fwsc`).
 4. **If the install is cut off,** switch the FM-1 off and on. You'll see three short flashes of the key lights, a
    black screen, and `ota-FM-1` ("Felucca Update") over USB. Open the installer again and run the same install:
    it finishes the write. An installer that knows Felucca's update mode resumes it by itself. That covers ChoralRoot,
@@ -69,18 +72,19 @@ Felucca-family firmwares: System > Reset Patches.
 
 ## Building
 
-You need Linux on x86-64 (or macOS / Windows with Docker), Python 3, the JieLi toolchain and three files of the
-JieLi AC79 SDK:
+You need Linux on x86-64 (or macOS / Windows with Docker), Python 3 and the JieLi toolchain. The three files of
+the JieLi AC79 SDK the package needs are in `tools/sdk/` (Apache-2.0; a full SDK checkout at `~/fw-AC79_AIoT_SDK`
+or `$AC79_SDK` is used instead when there is one):
 
 ```sh
-pip3 install Pillow mido python-rtmidi
+pip3 install mido python-rtmidi             # (the installer only)
 tools/get_toolchain.sh                      # JieLi's clang for the chip, to ~/.jieli/toolchain
-git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
-    https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git ~/fw-AC79_AIoT_SDK
 ./build.sh                                  # -> build/transit.fwsc (identity FM-1_015)
-./build.sh --release 0.1                    # -> build/transit-0.1.fwsc, SHA256SUMS
+./build.sh --release 0.1                    # -> build/release-0.1/: the package, SHA256SUMS, the licences
 tests/run_tests.sh                          # the host tests of the update path
 V15_PKG=FM-1.fwsc CR_PKG=choralroot.fwsc tests/run_tests.sh   # also the hops to V15 and to ChoralRoot
+node web/test_installer.mjs build/release-0.1/transit-0.1.fwsc  # the web installer against a fake FM-1
+python3 tools/make_site.py build/release-0.1 build/site       # the site, as Pages publishes it
 ```
 
 On macOS the build runs the toolchain in a `linux/amd64` Docker container (have Docker running). The build prints
@@ -89,6 +93,20 @@ must be ChoralRoot's: stub `baee55ed…` (version 3) and sector `0f33c838…`. T
 from `firmware/stub/stub.lock`, and a release build stops.
 
 The size: the app body is about 56 KB (ChoralRoot's is 543 KB), including a 7.5 KB copy of its own update loader.
+
+## Releasing
+
+1. `./build.sh --release X.Y`, twice (the first `build/release-X.Y` moved aside): the same `SHA256SUMS`.
+2. `web/releases.json`: X.Y first, its date, tag `vX.Y`, the package's sha256 and 3 to 6 notes.
+   `tests/run_tests.sh`, `node web/test_installer.mjs build/release-X.Y/transit-X.Y.fwsc`, `python3
+   tools/make_site.py build/release-X.Y build/site`. Commit, push.
+3. Push the tag `vX.Y`. `.github/workflows/release.yml` builds X.Y from source on GitHub (the toolchain natively,
+   `tools/sdk`), runs the tests, stops if its package differs from the sha256 in `web/releases.json`, makes the
+   release with the package, `SHA256SUMS`, `LICENSE`, `LICENSING.md` and `LICENSES.zip`, and starts
+   `.github/workflows/pages.yml`, which publishes the site with that package.
+
+Once, in the repository's Settings > Pages: Source "GitHub Actions". To publish the site again without a release,
+run pages.yml by hand with the current version.
 
 ## What is where
 
@@ -99,13 +117,20 @@ firmware/src/ota.c    step 1: our own loader staged, kept, restaged; never the p
 firmware/src/platform.c, transit.c   Dinghy's platform without the sound; the screen
 tools/build.py        the stub, the loader, the app with the loader inside, the package (fm1pkg_make.py)
 tests/                the stub's decision, step 1, the package builder, the loader's interruption model
+web/                  the web installer: index.html, transit.js (the page's logic, tested by test_installer.mjs),
+                      fm1ota.js / fm1pkg.js (the update protocol and the package, ChoralRoot's), releases.json
+tools/make_site.py    the site: the page, the package checked against releases.json, the licences beside it
+tools/sdk/            three JieLi AC79 SDK files (Apache-2.0) the package is built with
+LICENSES/             the licences of what is not GPL in a package: Apache-2.0 (the SDK files), OFL-1.1 (Terminus)
 docs/SAFETY.md        how it works, the numbers, what is not tested, the device test plan
 ```
 
 ## License
 
 GPL-3.0-only, as Felucca, SLOOP, Dinghy and ChoralRoot. You may change and share it, and whoever gets your firmware
-gets its source. Credits and third-party parts are in [LICENSING.md](LICENSING.md).
+gets its source. Credits and third-party parts are in [LICENSING.md](LICENSING.md). A package (`.fwsc`) also holds
+three JieLi AC79 SDK files (Apache-2.0) and the Terminus font (OFL-1.1): whoever passes a package on passes
+`LICENSE`, `LICENSING.md` and `LICENSES/` with it, as the releases and the site do.
 
 TransitFM1 is based on [Dinghy](https://github.com/zvenson/dinghy) by zvenson. Dinghy is
 [Felucca](https://github.com/hugelton/Felucca)'s platform (Leo Kuroshita, Hügelton Instruments) as

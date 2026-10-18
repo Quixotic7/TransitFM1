@@ -7,7 +7,10 @@
 # Ends "ALL TESTS PASSED" (exit 0), or stops at the first failure.
 set -e
 cd "$(dirname "$0")/.."
-export AC79_SDK="${AC79_SDK:-$HOME/fw-AC79_AIoT_SDK}"
+if [ -z "${AC79_SDK:-}" ]; then                   # as build.sh: an SDK checkout, else tools/sdk
+    if [ -f "$HOME/fw-AC79_AIoT_SDK/cpu/wl82/tools/uboot.boot" ]; then AC79_SDK="$HOME/fw-AC79_AIoT_SDK"; else AC79_SDK="$PWD/tools/sdk"; fi
+fi
+export AC79_SDK
 H=build/host
 mkdir -p "$H"
 [ -f build/transit.fwsc ] && [ -f build/transit.bin ] || { echo "run_tests.sh: run ./build.sh first"; exit 1; }

@@ -381,10 +381,21 @@ def main():
     print(f"app      {OUT / f'{UNIT}.bin'}  {len(stub) + len(img)} B")
     print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")
-    if a.release:
+    if a.release:                   # what a recipient of the package must get with it (LICENSING.md)
+        rel = OUT / f"release-{a.release}"
+        if rel.exists():
+            shutil.rmtree(rel)
+        (rel / "LICENSES").mkdir(parents=True)
+        shutil.copy(OUT / name, rel / name)
+        for f in ("LICENSE", "LICENSING.md"):
+            shutil.copy(SRC / f, rel / f)
+        for f in sorted((SRC / "LICENSES").glob("*.txt")):
+            shutil.copy(f, rel / "LICENSES" / f.name)
         sums = f"{hashlib.sha256(pkg).hexdigest()}  {name}\n"
-        (OUT / "SHA256SUMS").write_text(sums)
-        print("release ", sums.strip())
+        (rel / "SHA256SUMS").write_text(sums)
+        print(f"release  {rel}/: {name}, SHA256SUMS, LICENSE, LICENSING.md, LICENSES/ "
+              f"({', '.join(f.name for f in sorted((rel / 'LICENSES').iterdir()))})")
+        print("         " + sums.strip())
     return 0
 
 

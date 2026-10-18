@@ -1,0 +1,138 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TransitFM1 installer</title>
+<meta name="description" content="TransitFM1: a tiny firmware for the M-VAVE FM-1 to stop at between two others, safe to leave. Install it from the browser.">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #15181d; --dim: #5b636e; --line: #dde1e6;
+    --acc: #1f6fb8; --acc-ink: #ffffff; --ok: #1d7a43; --bad: #b3261e; --warn-bg: #fff6df; --warn-line: #e8c76a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1216; --card: #171b21; --ink: #e8ebef; --dim: #9aa3ad; --line: #2a3038;
+            --acc: #5fb0f2; --acc-ink: #06121d; --ok: #5fcf8c; --bad: #ff8a80; --warn-bg: #2a2410; --warn-line: #6b5a1e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 2.2rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h1 span { color: var(--acc); }
+  h2 { font-size: 1.15rem; margin: 0 0 12px; }
+  .lede { font-size: 1.1rem; color: var(--dim); margin: 0 0 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin: 0 0 16px; }
+  .warn { background: var(--warn-bg); border-color: var(--warn-line); }
+  ul { padding-left: 1.2em; margin: 8px 0 0; }
+  li { margin: 4px 0; }
+  button { font: inherit; font-weight: 600; border-radius: 8px; border: 1px solid var(--line); background: var(--card);
+           color: var(--ink); padding: 10px 16px; cursor: pointer; }
+  button.primary { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); font-size: 1.05rem; padding: 12px 20px; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  body.busy button { pointer-events: none; opacity: 0.6; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .meta { color: var(--dim); font-size: 0.95rem; }
+  progress { width: 100%; height: 10px; margin-top: 14px; }
+  .status { margin: 14px 0 0; min-height: 1.5em; }
+  .status.ok { color: var(--ok); font-weight: 600; }
+  .status.bad { color: var(--bad); font-weight: 600; }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--dim); }
+  pre { white-space: pre-wrap; font-size: 0.8rem; color: var(--dim); max-height: 240px; overflow: auto; }
+  input[type=file] { max-width: 100%; }
+  label.check { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td:last-child { white-space: nowrap; }
+  a { color: var(--acc); }
+  footer { color: var(--dim); font-size: 0.9rem; margin-top: 32px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Transit<span>FM1</span></h1>
+  <p class="lede">A tiny firmware for the M-VAVE FM-1 to stop at between two others: every installer takes it for the
+    official V15, and the write that replaces it is guarded until its last sector.</p>
+
+  <section class="card warn">
+    <h2>Before you start</h2>
+    <p style="margin:0"><b>TransitFM1 <span id="ver">…</span> has been built and tested on a computer, not yet on an
+      FM-1.</b> Its boot stub and write order come from ChoralRoot, where they were tested on a unit. Try it first on an
+      FM-1 you can recover with the <a href="https://github.com/kurogedelic/FM-1-transporter">FM-1 Transporter</a> or
+      <a href="https://github.com/Quixotic7/MvaveFM1Unbricker">MvaveFM1Unbricker</a>. Installing firmware is at your
+      own risk.</p>
+  </section>
+
+  <section class="card">
+    <h2>Install</h2>
+    <p class="meta" style="margin-top:0">Chrome or Edge on a computer; the FM-1 charged, switched on and connected with a
+      USB data cable, directly. Released <span id="date">…</span>.</p>
+    <ul id="notes"></ul>
+    <div class="row" style="margin-top:16px">
+      <button id="go" class="primary" disabled>Install TransitFM1</button>
+      <button id="check">What is on my FM-1?</button>
+    </div>
+    <div id="override-box" hidden>
+      <label class="check"><input type="checkbox" id="override"><span>I understand the risk: install over this firmware
+        anyway. An install over Sloop or a Felucca beta has left FM-1s that no longer start.</span></label>
+    </div>
+    <progress id="bar" max="1000" value="0" hidden></progress>
+    <p id="status" class="status" role="status"></p>
+    <details><summary>Log</summary><pre id="log"></pre></details>
+  </section>
+
+  <section class="card">
+    <h2>If an install is cut off</h2>
+    <p style="margin:0">From TransitFM1, a pulled cable or a flat battery is not the end: switch the FM-1 off and on.
+      Three short flashes of the key lights and a black screen mean <b>update mode</b>. Open this page (or the installer
+      you were using) and press <b>Install</b> again with the same firmware: it finishes the write. Holding <b>OCT-</b>
+      while switching on gives the same update mode at any time.</p>
+    <p class="meta">Do not switch off and on twice in a row while it is in update mode: the second time it drops into the
+      chip's own USB boot ("WL82 UBOOT1.00"), where <a href="https://github.com/Quixotic7/MvaveFM1Unbricker">MvaveFM1Unbricker</a>
+      takes over (Windows or Linux).</p>
+  </section>
+
+  <section class="card">
+    <h2>Leaving TransitFM1</h2>
+    <p style="margin:0">Install the next firmware with its own installer: it sees an FM-1 on the official V15. Whatever
+      the package, TransitFM1 writes it with its own update loader, the new firmware's first sector last. To go back to
+      stock, install M-VAVE's <code>FM-1.fwsc</code>.</p>
+    <details>
+      <summary>Install a package file from here</summary>
+      <p class="meta">An FM-1 package (<code>.fwsc</code>), for example M-VAVE's <code>FM-1.fwsc</code> or the release
+        of the firmware you are going to. Also finishes a cut-off install of that file.</p>
+      <div class="row">
+        <input type="file" id="file" accept=".fwsc">
+        <button id="file-go" disabled>Install this file</button>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>How much of a write is guarded</h2>
+    <table>
+      <tr><th>hop</th><th>cut points with no rescue</th></tr>
+      <tr><td>TransitFM1 → the official V15, or any firmware without ChoralRoot's stub</td><td>16 of 2432: the last sector</td></tr>
+      <tr><td>TransitFM1 ↔ ChoralRoot</td><td>none</td></tr>
+      <tr><td>the official V15 → TransitFM1</td><td>17 of 2432: the first sector</td></tr>
+    </table>
+    <p class="meta">A power cut after every flash erase and every programmed page, judged by the boot stub's own code (host
+      tests). <a href="https://github.com/Quixotic7/TransitFM1/blob/main/docs/SAFETY.md">How it works</a>. Not from Bubba
+      Machine: its updater accepts only M-VAVE's package; go back to V15 with its installer first.</p>
+  </section>
+
+  <footer>
+    <p>TransitFM1 is free software under the GPL-3.0 (<a href="https://github.com/Quixotic7/TransitFM1">source</a>),
+      based on <a href="https://github.com/zvenson/dinghy">Dinghy</a>, <a href="https://github.com/hugelton/Felucca">Felucca</a>'s
+      platform as <a href="https://github.com/isod89/sloop-fm1">SLOOP</a> carries it, with
+      <a href="https://github.com/Quixotic7/ChoralRootFM1">ChoralRoot FM-1</a>'s boot stub. The package holds three JieLi
+      AC79 SDK files (Apache-2.0) and the Terminus font (OFL-1.1): <a href="firmware/">the package, its sums and every
+      licence</a>.</p>
+    <p>"M-VAVE" and "FM-1" belong to their owners. TransitFM1 answers the update protocol as the official firmware so
+      that installers accept it; it is not made or endorsed by M-VAVE.</p>
+  </footer>
+</main>
+<script type="module" src="transit.js"></script>
+</body>
+</html>
