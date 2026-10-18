@@ -3,18 +3,6 @@
   "repo": "https://github.com/Quixotic7/TransitFM1",
   "releases": [
     {
-      "version": "0.1.2",
-      "date": "2026-10-17",
-      "tag": "v0.1.2",
-      "sha256": "9f4a6a4210a81ff0401114edd63103c4b796fc23e6ca4c188e2187585849a867",
-      "notes": [
-        "Baud Girl installs from TransitFM1: its updater now answers as M-VAVE's (ota-FM-1_015) when the next firmware carries M-VAVE's loader, and as Felucca's (ota-FM-1_900) otherwise.",
-        "Includes 0.1.1's fixes: the safe start after the official V15, and installs no longer stalled by a DAW's MIDI.",
-        "Every installer takes it for the official V15: identity FM-1_015, the USB device \"FM-1\".",
-        "ChoralRoot's boot stub in front of it, and the next firmware written by its own loader, first sector last: a write cut off at any other point comes back in update mode."
-      ]
-    },
-    {
       "version": "0.1.1",
       "date": "2026-10-17",
       "tag": "v0.1.1",
