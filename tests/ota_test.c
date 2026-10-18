@@ -268,6 +268,7 @@ int main(int argc, char **argv)
             logical = lg; logical_len = ll;
             rc = session();
             logical = own_pkg; logical_len = own_pkg_len;
+            free(lg);
             bad += check("a flash.bin longer than the app area: refused (-4), nothing committed, the area untouched",
                          rc == -4 && !committed && erases == 0u && !memcmp(nor + T_AREA, area, sizeof area) &&
                          own_in_area());
