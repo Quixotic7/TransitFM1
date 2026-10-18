@@ -145,7 +145,7 @@ jobs:
           sed "s/@VERSION@/$VERSION/g" > release-body.md <<'EOT'
           TransitFM1 @VERSION@ for the M-VAVE FM-1: a tiny firmware to stop at between two others. It answers every installer as the official V15 (identity FM-1_015), carries ChoralRoot's boot stub, and writes the next firmware with its own update loader, the new firmware's first sector last: an install cut off at any other point comes back in update mode.
 
-          Install from the browser at https://quixotic7.github.io/TransitFM1/ (Chrome or Edge, the FM-1 connected by USB), or with `python3 tools/fm1_install.py transit-@VERSION@.fwsc`. Read docs/SAFETY.md first: this release has been tested on a computer, not yet on an FM-1.
+          Install from the browser at https://quixotic7.github.io/TransitFM1/ (Chrome or Edge, the FM-1 connected by USB), or with `python3 tools/fm1_install.py transit-@VERSION@.fwsc`. docs/SAFETY.md says how it works and what was tested on a unit.
 
           The package holds three JieLi AC79 SDK files (Apache-2.0) and the Terminus font (OFL-1.1); `LICENSE` (GPL-3.0), `LICENSING.md` and `LICENSES.zip` carry every licence. `SHA256SUMS` lists the package. Installing firmware is at your own risk.
           EOT

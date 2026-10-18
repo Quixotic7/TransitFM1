@@ -96,10 +96,24 @@ package; the loader check against the stub's on 20000 damaged copies) pass too.
 - **Data.** TransitFM1 reads and writes nothing but its staging area (0xE0000..0xE4FFF). What the previous firmware
   stored stays where it was. The next firmware finds it, as it would after any install.
 
-## Not tested on a unit yet
+## On the unit (0.1, 2026-10-17)
 
-Built (`./build.sh`) and host-tested only. Before it is recommended to anyone, it needs a unit with the Transporter
-at hand, a full battery, and M-VAVE's `FM-1.fwsc`:
+The owner, with the release package (`transit-0.1.fwsc`, sha256 `9bcee26a…`):
+
+- **Installed from the web installer** (<https://quixotic7.github.io/TransitFM1/>): no problems.
+- **TransitFM1 to other firmwares**: works.
+- **The USB cable pulled during an install**: the FM-1 came back in update mode, and the install finished from
+  there. This is the foreign order and the kept loader working on the unit, not only on the host.
+- **Bubba Machine and back**: Bubba Machine installed; over it the web installer refused (Bubba Machine accepts only
+  M-VAVE's own package) and said to go to the official V15 first; from V15, TransitFM1 again: works.
+
+Not reported separately: OCT- at power-on (the stub's rescue key, tested on ChoralRoot's units), TransitFM1 to and
+from ChoralRoot, another firmware's own installer over TransitFM1. The one window left, a cut inside the new
+firmware's sector 0x4000 (about 0.1 s), cannot be hit by hand.
+
+## The device test plan
+
+The steps for the next version, with the Transporter at hand, a full battery, and M-VAVE's `FM-1.fwsc`:
 
 1. From V15 (or ChoralRoot), install `build/transit.fwsc` with `tools/fm1_install.py`.
    - The screen should read TRANSIT, "AS V15 (FM-1_015)", and no red line.

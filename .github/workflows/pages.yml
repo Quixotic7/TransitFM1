@@ -6,11 +6,17 @@
 #                                       tools/make_site.py, deploy to Pages
 #   release published                -> starts the dispatch above from the default branch (the github-pages
 #                                       environment only accepts deployments from it), the site built from the tag
+#   push to main touching the page   -> the same for web/releases.json's first version, the site built from main (a
+#                                       change of the page or the licences); skipped with a notice while that version
+#                                       has no release yet (releases.json is committed before its tag)
 # release.yml starts the dispatch itself after it made the release. Settings -> Pages -> Source must be
 # "GitHub Actions".
 name: pages
 
 on:
+  push:
+    branches: [main]
+    paths: ["web/**", "tools/make_site.py", "LICENSE", "LICENSING.md", "LICENSES/**"]
   release:
     types: [published]
   workflow_dispatch:
@@ -58,25 +64,30 @@ jobs:
           gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f version="$version" -f ref="$TAG"
 
   site:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
-    env:
-      VERSION: ${{ inputs.version }}
+    outputs:
+      skip: ${{ steps.packages.outputs.skip }}
     steps:
-      - name: Check the version
-        run: |
-          set -euo pipefail
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.]+)?$ ]]; then
-            echo "::error::version '$VERSION' is not X.Y, X.Y.Z or X.Y-suffix (e.g. 0.1, without the v)"
-            exit 1
-          fi
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref || github.event.repository.default_branch }}
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: The version (the dispatch's, or on a push web/releases.json's first)
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          v="$INPUT_VERSION"
+          if [ -z "$v" ]; then v=$(python3 -c 'import json; print(json.load(open("web/releases.json"))["releases"][0]["version"])'); fi
+          if [[ ! "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "::error::version '$v' is not X.Y, X.Y.Z or X.Y-suffix (e.g. 0.1, without the v)"
+            exit 1
+          fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -96,10 +107,16 @@ jobs:
           fi
 
       - name: Download the packages from their releases
+        id: packages
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = push ] && ! gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::web/releases.json lists $VERSION first and its release v$VERSION is not made yet: the site stays as it is (release.yml publishes it with the release)"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           mkdir -p build/packages
           python3 -c 'import json; [print(r["version"]) for r in json.load(open("web/releases.json"))["releases"]]' |
           while read -r v; do
@@ -114,6 +131,7 @@ jobs:
           ls -l build/packages
 
       - name: Build the site (tools/make_site.py checks every sha256)
+        if: steps.packages.outputs.skip != '1'
         run: |
           set -euo pipefail
           python3 tools/make_site.py build/packages build/site
@@ -122,11 +140,13 @@ jobs:
           find build/site -type f | sort
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: steps.packages.outputs.skip != '1'
         with:
           path: build/site
 
   deploy:
     needs: site
+    if: needs.site.outputs.skip != '1'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

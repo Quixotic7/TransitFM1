@@ -20,12 +20,12 @@ for you to install the next firmware. Three things make it a good stopover:
   at any point before that last sector leaves an FM-1 that comes back in update mode: switch it on, run the
   installer again.
 
-> **Status: 0.1, built and host-tested only. It has not run on an FM-1 yet.** The boot stub and the loader order
-> it builds on are ChoralRoot's, tested on a unit (cable pulled mid-write, rescued). The new parts — writing
-> another firmware's package with sector 0x4000 last, and staging its own loader — are tested only on the host
-> (`tests/run_tests.sh`). Try it first on a unit you can recover with the
+> **Status: 0.1, tested on an FM-1** (2026-10-17, docs/SAFETY.md "On the unit"): installed from the web installer;
+> TransitFM1 to other firmwares and back; the USB cable pulled during an install, and the install finished from
+> update mode; Bubba Machine installed, refused by the installer, and back through V15. The host tests (`tests/run_tests.sh`)
+> measure every cut point. Installing firmware is still at your own risk: keep the
 > [FM-1 Transporter](https://github.com/kurogedelic/FM-1-transporter) or
-> [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker). docs/SAFETY.md has the device test plan.
+> [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker) in mind for the one window that is left.
 
 ## How much of each write is protected
 
