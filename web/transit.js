@@ -142,10 +142,14 @@ if (typeof document !== "undefined") {
   }));
   fetch("releases.json", { cache: "no-cache" }).then((r) => r.json()).then((list) => {
     rel = list.releases[0];
-    $("ver").textContent = rel.version;
-    $("date").textContent = rel.date;
     $("go").textContent = `Install TransitFM1 ${rel.version}`;
     $("go").disabled = false;
-    $("notes").replaceChildren(...rel.notes.map((n) => Object.assign(document.createElement("li"), { textContent: n })));
-  }).catch(() => ui.say("The release list could not be loaded. Reload the page.", "bad"));
+    const put = (id, f) => { const e = $(id); if (e) f(e); };   // (the page's text may change; installing must not)
+    put("ver", (e) => { e.textContent = rel.version; });
+    put("date", (e) => { e.textContent = rel.date; });
+    put("notes", (e) => e.replaceChildren(...rel.notes.map((n) => Object.assign(document.createElement("li"), { textContent: n }))));
+  }, (e) => {
+    ui.say("The release list could not be loaded. Reload the page.", "bad");
+    ui.log(String(e && e.stack || e));
+  });
 }

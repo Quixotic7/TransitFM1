@@ -86,6 +86,15 @@ const UI = (answer = true) => {
                             confirm() { u.confirms++; return answer; }, log() {} });
 };
 
+// the page: every element transit.js looks up is in index.html (0.1.1's first page lost #ver: no install button)
+{
+  const page = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  const js = readFileSync(new URL("./transit.js", import.meta.url), "utf8");
+  const ids = [...new Set([...js.matchAll(/(?:\$|put)\("([\w-]+)"/g)].map((m) => m[1]))];
+  const missing = ids.filter((id) => !new RegExp(`id="${id}"`).test(page));
+  ok(ids.length >= 10 && !missing.length, `the page has every element transit.js uses (${ids.length})${missing.length ? ": missing " + missing.join(", ") : ""}`);
+}
+
 const pkgPath = process.argv[2], v15Path = process.argv[3];
 if (!pkgPath) { console.log("usage: node web/test_installer.mjs transit-X.Y.fwsc [FM-1.fwsc]"); process.exit(2); }
 const raw = new Uint8Array(readFileSync(pkgPath));
