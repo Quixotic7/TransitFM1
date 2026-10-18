@@ -3,15 +3,15 @@
   "repo": "https://github.com/Quixotic7/TransitFM1",
   "releases": [
     {
-      "version": "0.1",
+      "version": "0.1.1",
       "date": "2026-10-17",
-      "tag": "v0.1",
-      "sha256": "9bcee26a8791232ce13c47b8210cc4f2ecde44e07cb9442f271054a73f68c90d",
+      "tag": "v0.1.1",
+      "sha256": "e074eabd4a8919404dc9ba19ed4a82f3d09c5420874c9351bedb896525901511",
       "notes": [
+        "Fixes 0.1's crash on its first start after the official V15: it now sets up its rescue loader safely, and shows \"STAGING THE LOADER\" while it does.",
+        "Fixes installs that stalled while a DAW sent MIDI to the FM-1.",
         "Every installer takes it for the official V15: identity FM-1_015, the USB device \"FM-1\".",
-        "ChoralRoot's boot stub in front of it: a write cut off at any point but the last sector comes back in update mode.",
-        "It writes the next firmware with its own update loader, the new firmware's first sector last.",
-        "Between TransitFM1 and ChoralRoot no cut point is unprotected."
+        "ChoralRoot's boot stub in front of it, and the next firmware written by its own loader, first sector last: a write cut off at any other point comes back in update mode."
       ]
     }
   ]

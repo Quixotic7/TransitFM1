@@ -20,12 +20,11 @@ for you to install the next firmware. Three things make it a good stopover:
   at any point before that last sector leaves an FM-1 that comes back in update mode: switch it on, run the
   installer again.
 
-> **Status: do not install 0.1 from the official V15.** Its first boot after V15 faults while it stages its rescue
-> loader, and the unit ends in the USB rescue, then the ROM's USB boot (seen on a unit, recovered with the
-> Transporter). With a DAW sending MIDI to the FM-1, 0.1 also stops taking the installer's messages.
-> **0.1.1 fixes both** (docs/SAFETY.md "0.1's two bugs"); it is host-tested and waits for its test on a unit: the
-> hop from V15. From ChoralRoot, 0.1 worked on the unit: to other firmwares, and a cable pulled mid-install came
-> back in update mode. Keep the [FM-1 Transporter](https://github.com/kurogedelic/FM-1-transporter) or
+> **Status: 0.1.1 replaces 0.1.** 0.1 faulted on its first boot after the official V15, while it staged its rescue
+> loader (the unit ended in the USB rescue, then the ROM's USB boot; seen on a unit, recovered with the
+> Transporter), and stopped taking the installer's messages while a DAW sent MIDI to the FM-1. 0.1.1 fixes both
+> (docs/SAFETY.md "0.1's two bugs"); the fixes are host-tested. From ChoralRoot, 0.1 worked on the unit: to other
+> firmwares, and a cable pulled mid-install came back in update mode. Keep the [FM-1 Transporter](https://github.com/kurogedelic/FM-1-transporter) or
 > [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker) at hand.
 
 ## How much of each write is protected

@@ -138,7 +138,7 @@ and the kept loader working on a unit. Bubba Machine installed; over it the web 
 accepts only M-VAVE's own package) and said to go to V15 first. **The hop from V15 back to TransitFM1 met bug 1**
 (above): TRANSIT USB RESCUE, then the ROM's USB boot, recovered with the Transporter.
 
-**0.1.1** (`transit-0.1.1.fwsc`, sha256 `e074eabd…`): host-tested; on a unit still to do, first of all **V15 →
+**0.1.1** (released 2026-10-17, `transit-0.1.1.fwsc`, sha256 `e074eabd…`): host-tested; on a unit still to do, first of all **V15 →
 TransitFM1**: the first boot shows "STAGING THE LOADER", then the TRANSIT screen with no red line; then OCT- at
 power-on gives three flashes and update mode; an install with a DAW sending clock to the FM-1 goes through.
 
