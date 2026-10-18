@@ -155,5 +155,14 @@ t = await run({ identity: "ota-FM-1_015", name: "ota-FM-1" });
 ok(t.e && /another firmware/.test(t.e.message) && t.dev.upgrades === 0,
    "in the official loader's update mode: not written (finish it with M-VAVE's own package)");
 
+if (v15Path) {   // TransitFM1's loader writing M-VAVE's V15 answers ota-FM-1_015: cut off, it is finished as the return to stock
+  const v15 = await packageFrom(new Uint8Array(readFileSync(v15Path)));
+  const dev = new FakeFM1(v15.image, { identity: "ota-FM-1_015", name: "ota-FM-1", final: "FM-1_015" }), ui = UI();
+  const r = await install(dev.access, v15, ui);
+  ok(r === "resumed" && dev.bad === 0 && dev.identity === "FM-1_015", "in update mode as ota-FM-1_015 with M-VAVE's V15 chosen: the write finished");
+}
+t = await run({ identity: "FM-1_101", name: "FM-1+VA" });
+ok(t.r === "refused" && t.dev.upgrades === 0, "over Baud Girl (FM-1_101, a version the table does not know): refused, nothing sent");
+
 console.log(fails ? `installer: ${fails} of ${checks} FAILED` : `installer tests passed (${checks})`);
 process.exit(fails ? 1 : 0);

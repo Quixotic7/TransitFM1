@@ -12,7 +12,9 @@
 #define FELUCCA_OTA 1
 #define FELUCCA_OTA_DRYRUN 0
 #define FELUCCA_USB_PID 0x0002
-#define FELUCCA_ID "ota-FM-1_900"
+#define FELUCCA_ID "ota-FM-1_900"              /* (the default; ldr_cstart picks this install's: ldr_pick_identity) */
+static char ldr_id[16];
+#define OTA_IDENTITY_TEXT ldr_id
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")
 #include "fm1_time.h"
 #include "fm1_sys.h"
@@ -115,5 +117,11 @@ void ldr_cstart(void)
                                                      * ours: left as it is */
     for (p = _bss_start; p < _bss_end; p++)
         *p = 0;
+    {
+        static uint8_t rec[112];
+        if (fl_read_ram(0xE4F00u, rec, sizeof rec))         /* ota.c OTA_RES: the flash copy of the record */
+            rec[0] = rec[1] = 0;
+        ldr_pick_identity(rec, ldr_id);
+    }
     ldr_main();
 }

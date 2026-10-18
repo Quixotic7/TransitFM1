@@ -41,7 +41,7 @@ if [ -n "$V15_PKG" ]; then
     echo "== TransitFM1 -> the official V15 (a foreign package: sector 0x4000 last)"
     "$H/ldr_test" "$PKG" "$V15_PKG"
     echo "== the official V15 -> TransitFM1 (TransitFM1's loader, staged by V15's updater at 0xE6000, outside the stub's view)"
-    "$H/ldr_test" --staged-elsewhere "$V15_PKG" "$PKG"
+    LDR_STAGED_ELSEWHERE=1 "$H/ldr_test" "$V15_PKG" "$PKG"
 else
     echo "(V15_PKG not set: TransitFM1 <-> the official V15 skipped)"
 fi

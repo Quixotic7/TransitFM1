@@ -193,6 +193,26 @@ static int ldr_write(uint32_t s, const uint8_t *sec, uint8_t *cur, uint32_t *ope
     return LDR_EVERIFY;
 }
 
+/* the identity this loader answers (ota.c OTA_ID_*): the one TransitFM1's step 1 left beside the flash copy of the
+ * record (rec: OTA_RES, 112 bytes), when that copy is whole and tagged; else ota-FM-1_900, the update mode the
+ * Felucca-family installers resume. Also after a cut, since the record stays until the write is done; a rescue
+ * with no install behind it (OCT- at power-on) finds none */
+static void ldr_pick_identity(const uint8_t *rec, char *out)
+{
+    uint32_t i, n = 0, ok;
+    ok = ota_rd16(rec) && ota_rd16(rec) == ota_crc16(rec + 2, 78, 0) && ota_rd16(rec + 2) == 0x5A0Du &&
+         ota_rd16(rec + 6) == 0x5441u && ota_memeq(rec + OTA_ID_TAG_OFF, (const uint8_t *)"TRANSIT1", 8) &&
+         ota_memeq(rec + OTA_ID_OFF, (const uint8_t *)"ota-FM-1_", 9);
+    if (ok) {
+        while (OTA_ID_OFF + 9u + n < 112u && rec[OTA_ID_OFF + 9u + n] >= '0' && rec[OTA_ID_OFF + 9u + n] <= '9')
+            n++;
+        ok = n == 3u && rec[OTA_ID_OFF + 12u] == 0;
+    }
+    for (i = 0; i < 13u; i++)
+        out[i] = ok ? (char)rec[OTA_ID_OFF + i] : OTA_ID_FELUCCA[i];
+    out[12] = 0;
+}
+
 static int ldr_pass(void)
 {
     static uint8_t hdr[0x400], sec[0x1000], cur[0x1000], held[0x1000];

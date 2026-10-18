@@ -57,8 +57,9 @@ written, no rescue code is left on the unit, so almost the whole one-to-two-minu
    - A red **LOADER NOT STAGED** line means TransitFM1 could not set up its rescue. It then refuses updates.
      Don't continue: report it.
 3. **Leaving.** Open the installer of the firmware you want and install it. To that installer the FM-1 is an FM-1
-   on V15. To go back to stock, install M-VAVE's `FM-1.fwsc` (the web installer's "Install a package file from
-   here" takes it, or any other `.fwsc`).
+   on V15, and from 0.1.2 its updater answers as the installer expects: `ota-FM-1_015` for a package with M-VAVE's
+   loader (V15, Baud Girl), `ota-FM-1_900` for a Felucca-family one. To go back to stock, install M-VAVE's
+   `FM-1.fwsc` (the web installer's "Install a package file from here" takes it, or any other `.fwsc`).
 4. **If the install is cut off,** switch the FM-1 off and on. You'll see three short flashes of the key lights, a
    black screen, and `ota-FM-1` ("Felucca Update") over USB. Open the installer again and run the same install:
    it finishes the write. An installer that knows Felucca's update mode resumes it by itself. That covers ChoralRoot,

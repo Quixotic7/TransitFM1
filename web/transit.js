@@ -84,7 +84,10 @@ export async function install(access, pkg, ui, opts = {}) {
   };
   if (st.loader) {
     ui.say(`The FM-1 is in update mode (${st.identity}): finishing the write of ${pkg.label}...`);
-    const ok = await up.resume(pkg.image, step, { package: pkg.product });
+    // TransitFM1's loader answers ota-FM-1_900 writing a Felucca-family package and ota-FM-1_015 writing one with
+    // M-VAVE's loader (firmware/src/ota.c OTA_ID_*): the official V15 is resumed as the return to stock; another
+    // package of that kind (Baud Girl's) is finished by its own installer, which knows that update mode
+    const ok = await up.resume(pkg.image, step, pkg.official ? { product: pkg.product } : { package: pkg.product });
     if (!ok) throw new Error("The write did not finish. Keep the FM-1 connected, switch it off and on if its screen stays black, and press Install again.");
     ui.say(`Done: ${pkg.label} is installed.`, "ok");
     return "resumed";

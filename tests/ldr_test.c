@@ -169,7 +169,7 @@ static uint32_t flash_off(const uint8_t *lg)        /* flash.bin offset in the l
     return 0;
 }
 
-/* --staged-elsewhere: the running firmware staged NEW's loader outside the area the stub reads (the official V15
+/* LDR_STAGED_ELSEWHERE=1 in the environment: the running firmware staged NEW's loader outside the area the stub reads (the official V15
  * puts it at 0xE6000; the stub and TransitFM1 use 0xE0000). The stub then finds no loader of ours: a cut after its
  * sector is written ends in the ROM's USB boot (UBOOT), recoverable with MvaveFM1Unbricker, not in update mode */
 static int staged_elsewhere;
@@ -303,8 +303,9 @@ int main(int argc, char **argv)
     uint32_t ofo, nfo;
     volatile int bad = 0;                               /* (live across the setjmp of the cuts) */
     int rc;
-    if (argc > 1 && !strcmp(argv[1], "--staged-elsewhere")) { staged_elsewhere = 1; argc--; argv++; }
-    if (argc < 3) { printf("usage: ldr_test [--staged-elsewhere] OLD.fwsc NEW.fwsc [SAME_STUB.fwsc OTHER_OLD.fwsc [OLD_STUB.fwsc]]\n"); return 2; }
+    staged_elsewhere = getenv("LDR_STAGED_ELSEWHERE") != NULL;      /* (not an argument: argc / argv stay as they are
+                                                                     * across the cuts' setjmp) */
+    if (argc < 3) { printf("usage: [LDR_STAGED_ELSEWHERE=1] ldr_test OLD.fwsc NEW.fwsc [SAME_STUB.fwsc OTHER_OLD.fwsc [OLD_STUB.fwsc]]\n"); return 2; }
     old = load_logical(argv[1], &olen);
     logical = load_logical(argv[2], &logical_len);
     ofo = flash_off(old);
@@ -318,6 +319,37 @@ int main(int argc, char **argv)
         r[2] = 0x0D; r[3] = 0x5A; r[4] = 0x01; r[5] = 0x5A; r[6] = 0x41; r[7] = 0x54;
         ota_wr16(r, ota_crc16(r + 2, 78, 0));
         memcpy(nor + T_OTA + 0x4F00u, r, sizeof r);
+    }
+    {   /* the identity the loader answers (ldr_pick_identity), from the flash copy of the record step 1 left */
+        uint8_t r[112];
+        char id[16];
+        int okid = 1;
+        const char *cases[][2] = {{"ota-FM-1_015", "ota-FM-1_015"}, {"ota-FM-1_900", "ota-FM-1_900"},
+                                  {"ota-FM-1_0155", "ota-FM-1_900"}, {"ota-FM-1_0x5", "ota-FM-1_900"},
+                                  {"ota-SMK-37_015", "ota-FM-1_900"}};
+        uint32_t c;
+        for (c = 0; c < sizeof cases / sizeof cases[0]; c++) {
+            memset(r, 0, sizeof r);
+            r[2] = 0x0D; r[3] = 0x5A; r[4] = 0x01; r[5] = 0x5A; r[6] = 0x41; r[7] = 0x54;
+            memcpy(r + 8, "ota-FM-1_015", 12);
+            ota_wr16(r, ota_crc16(r + 2, 78, 0));
+            memcpy(r + OTA_ID_TAG_OFF, "TRANSIT1", 8);
+            memcpy(r + OTA_ID_OFF, cases[c][0], strlen(cases[c][0]));
+            ldr_pick_identity(r, id);
+            okid &= !strcmp(id, cases[c][1]);
+        }
+        memset(r + OTA_ID_TAG_OFF, 0, 32);                            /* ChoralRoot's record: no tag */
+        ldr_pick_identity(r, id);
+        okid &= !strcmp(id, "ota-FM-1_900");
+        memcpy(r + OTA_ID_TAG_OFF, "TRANSIT1", 8);
+        memcpy(r + OTA_ID_OFF, "ota-FM-1_015", 12);
+        r[20] ^= 1;                                                   /* the record's CRC broken */
+        ldr_pick_identity(r, id);
+        okid &= !strcmp(id, "ota-FM-1_900");
+        memset(r, 0xFF, sizeof r);                                    /* no record (OCT- at power-on) */
+        ldr_pick_identity(r, id);
+        okid &= !strcmp(id, "ota-FM-1_900");
+        bad += check("the loader's identity: step 1's choice when tagged and whole, else ota-FM-1_900", okid);
     }
     rc = ldr_session();
     printf("  rc %d, %u requests, %u sector erases\n", rc, requests, erases);

@@ -10,7 +10,7 @@ or the cable is cut during that write, the FM-1 should come back in update mode,
 | the boot stub: flash 0x4120..0x4FFF, where the SPL jumps | `firmware/stub/` | ChoralRoot, byte for byte (version 3, sha256 `baee55ed…`) |
 | the commit marker, flash 0x91FE0: magic, the body's length and CRC-32, its own CRC | `tools/fm1pkg_make.py` | ChoralRoot |
 | the CRC compensation that keeps sector 0x4000 the same bytes in every build | `tools/fm1pkg_make.py` | ChoralRoot |
-| the update loader, staged at 0xE0000, USB `ota-FM-1_900` | `firmware/loader/` | Felucca / SLOOP, with ChoralRoot's order and **TransitFM1's** |
+| the update loader, staged at 0xE0000, USB "Felucca Update", `ota-FM-1_900` or `_015` (below) | `firmware/loader/` | Felucca / SLOOP, with ChoralRoot's order and **TransitFM1's** |
 | step 1: what the running firmware does when an installer asks for an update | `firmware/src/ota.c` | Felucca / SLOOP / ChoralRoot, **TransitFM1's** step 1 |
 | the app: a screen, USB-MIDI for the updater, the boot guard | `firmware/src/` | Dinghy, without the sound |
 
@@ -59,8 +59,10 @@ differs and then commits. The flash head (0x0000..0x3FFF, the SPL) is never writ
 | what | answers | why |
 | --- | --- | --- |
 | the running app (and its USB rescue) | `FM-1_015`, USB device "FM-1" | the official V15's: every installer that guards against other firmwares lets an install over V15 through |
-| the update loader | `ota-FM-1_900`, USB device "Felucca Update" | the update mode the Felucca-family installers and the FM-1 Firmware Hub resume after a cut (they resume only `ota-FM-1_9NN`) |
-| the update record (RAM 0x01C7FD88, flash 0xE4F00) | `ota-FM-1_015` | the same bytes as ChoralRoot's record, which the stub writes for its own hand-over |
+| the update loader, writing a package with a Felucca-family loader (ChoralRoot, Felucca, Dinghy, TransitFM1), and in a rescue with no install behind it | `ota-FM-1_900`, USB device "Felucca Update" | the update mode the Felucca-family installers and the FM-1 Firmware Hub resume after a cut (they resume only `ota-FM-1_9NN`) |
+| the update loader, writing a package with M-VAVE's loader (the official V15, Baud Girl, Bubba Machine) | `ota-FM-1_015` (0.1.2 on) | the updater those installers expect: Baud Girl's refuses an updater that answers 700 or more as "another custom firmware" (its `ota.js` step 2), and did so with 0.1 / 0.1.1 |
+| the update record (RAM 0x01C7FD88, and its first 80 bytes in flash at 0xE4F00) | `ota-FM-1_015` | the same bytes as ChoralRoot's record, which the stub writes for its own hand-over |
+| behind the flash copy (0xE4F50: "TRANSIT1", 0xE4F58: the loader's identity) | `ota-FM-1_900` / `_015` | step 1's choice, by the loader the package carries (`ota.c ota_stage`); the loader reads it at its start, also after a cut (the record stays until the write is done: `ldr_core.c ldr_pick_identity`). The SPL reads 80 bytes; nothing else reads these |
 
 Dinghy's USB rescue (the boot guard's) answered `FM-1_000`, which ChoralRoot's installer refuses as "Sloop's
 rescue mode". TransitFM1's answers `FM-1_015` too.
@@ -83,6 +85,10 @@ package; the loader check against the stub's on 20000 damaged copies) pass too.
 
 ## Limits
 
+- **Baud Girl** (FM-1+VA, closed source, its own installer at baudgirl.com): from TransitFM1 0.1.2 its installer
+  installs it (0.1 / 0.1.1: refused in step 2, "another custom firmware"); after a cut, finish with Baud Girl's
+  installer, which knows `ota-FM-1_015`. Into TransitFM1 from Baud Girl: not offered (its identity `FM-1_101` is
+  one no table here knows); go through V15.
 - **From Bubba Machine there is no way in.** Its updater accepts only a package with M-VAVE's own update loader and
   the unit's boot head (its `hal/fm1/fm1_update.c`). Go to V15 with Bubba's installer first.
 - **Arriving is as safe as the firmware you leave.** The write into TransitFM1 is done by the loader your current
@@ -90,8 +96,8 @@ package; the loader check against the stub's on 20000 damaged copies) pass too.
   Until sector 0x4000 holds the stub, no rescue code of ours is on the unit: the first 16 or 17 flash operations,
   once per unit. From ChoralRoot there is no such window. **From the official V15** the stub cannot hand over to
   update mode at all during that write: V15 stages the loader at 0xE6000, and the stub looks at 0xE0000 only (seen
-  in a Transporter dump, 2026-10-17). A cut after the first sector ends in the ROM's USB boot (`ldr_test
-  --staged-elsewhere`: 2414 of 2432 cut points), recoverable with MvaveFM1Unbricker on Windows or Linux or the
+  in a Transporter dump, 2026-10-17). A cut after the first sector ends in the ROM's USB boot (`LDR_STAGED_ELSEWHERE=1
+  ldr_test`: 2414 of 2432 cut points), recoverable with MvaveFM1Unbricker on Windows or Linux or the
   Transporter; not dark, but not update mode either. TransitFM1's own first boot then stages its loader at 0xE0000,
   and from there every write is guarded as above.
 - **Leaving has its window at the end:** the new firmware's sector 0x4000. A torn sector there may leave the unit
@@ -137,6 +143,11 @@ TransitFM1: the FM-1 came back in update mode, and the install finished from the
 and the kept loader working on a unit. Bubba Machine installed; over it the web installer refused (Bubba Machine
 accepts only M-VAVE's own package) and said to go to V15 first. **The hop from V15 back to TransitFM1 met bug 1**
 (above): TRANSIT USB RESCUE, then the ROM's USB boot, recovered with the Transporter.
+
+**0.1.2**: the loader answers `ota-FM-1_015` when it writes a package with M-VAVE's loader (above, "The
+identities"), so that Baud Girl's installer installs from TransitFM1 (the owner, 2026-10-17: with 0.1 it could
+not). On a unit still to do: TransitFM1 → Baud Girl with Baud Girl's installer; TransitFM1 → V15; TransitFM1 →
+ChoralRoot, and a cut in each, finished from update mode.
 
 **0.1.1** (released 2026-10-17, `transit-0.1.1.fwsc`, sha256 `e074eabd…`): host-tested; on a unit still to do, first of all **V15 →
 TransitFM1**: the first boot shows "STAGING THE LOADER", then the TRANSIT screen with no red line; then OCT- at
