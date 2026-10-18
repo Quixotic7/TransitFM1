@@ -325,19 +325,24 @@ static int ota_own_staged(void)
 }
 
 /* stage our own loader: erase, body, read back against its CRC, head last (a cut leaves no head: nothing staged,
- * restaged at the next boot). 0 = staged */
+ * restaged at the next boot). 0 = staged.
+ * OTA_OWN_LDR is a const array, so in XIP flash on the device: the flash driver sends a page's bytes while the flash
+ * is out of XIP (hal/fm1_flash.h fl_prog_ram), so a source there faults. Each piece is copied to RAM first (0.1 did
+ * not: its first restage faulted, at the boot after a hop from the official V15, which stages elsewhere) */
 static int ota_restage(void)
 {
-    uint8_t b[256];
-    uint32_t len = OTA_OWN_LEN - 32u, c = ota_rd16(OTA_OWN_LDR + 2), crc = 0, i, n;
+    static uint8_t b[256];
+    uint32_t len = OTA_OWN_LEN - 32u, c = ota_rd16(OTA_OWN_LDR + 2), crc = 0, i, n, k;
     if (OTA_OWN_LEN < 32u + 40u || len > OTA_AREA_LEN - 0x1000u)
         return -20;
     for (i = 0; i < OTA_AREA_LEN; i += 0x1000u)
         if (ota_erase(OTA_AREA + i))
             return -21;
     for (i = 0; i < len; i += n) {
-        n = len - i > 256u ? 256u : len - i;
-        if (ota_prog(OTA_AREA + 32u + i, OTA_OWN_LDR + 32u + i, n))
+        n = len - i > sizeof b ? sizeof b : len - i;
+        for (k = 0; k < n; k++)
+            b[k] = OTA_OWN_LDR[32u + i + k];
+        if (ota_prog(OTA_AREA + 32u + i, b, n))
             return -22;
     }
     for (i = 0; i < len; i += n) {
@@ -349,6 +354,18 @@ static int ota_restage(void)
     if (crc != c || ota_stage_head(len))
         return -24;
     return ota_own_staged() ? 0 : -25;
+}
+
+/* the boot's part (platform.c, after the screen is up): what an update left goes (ota_boot_cleanup), then our own
+ * loader is staged if what is staged is not it, byte for byte. 0 it was there, 1 staged now, < 0 not staged (the
+ * boot stub's rescue would then end in UBOOT; step 1 tries again) */
+static int ota_boot_cleanup(void);
+static int ota_boot_stage(void)
+{
+    ota_boot_cleanup();
+    if (ota_own_staged())
+        return 0;
+    return ota_restage() == 0 ? 1 : -1;
 }
 
 /* step 1, TransitFM1's: the package is well formed and has a flash.bin the size of the app area; our own loader is

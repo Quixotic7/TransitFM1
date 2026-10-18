@@ -27,7 +27,6 @@ static int committed;
 static uint8_t committed_parm[112];
 static int32_t last_code;
 static uint8_t *corrupt_at;              /* flip a served byte */
-static uint8_t own_ldr[0x5000];          /* our ota.bin, from the package (as the app carries it) */
 static uint32_t own_len, erases;
 
 static uint32_t pack7(const uint8_t *in, uint32_t n, uint8_t *out)
@@ -107,10 +106,18 @@ static int ota_erase(uint32_t off)
     memset(nor + off, 0xFF, 4096);
     return 0;
 }
+static uint8_t own_ldr[0x5000];          /* our ota.bin, from the package (as the app carries it: a const array, in
+                                          * XIP on the device) */
 static int ota_prog(uint32_t off, const void *src, uint32_t n)
 {
     const uint8_t *s = src;
     uint32_t i;
+    if (s < own_ldr + sizeof own_ldr && s + n > own_ldr) {     /* the device faults here (hal/fm1_flash.h fl_prog_ram
+                                                                 * reads the source with the flash out of XIP): 0.1 */
+        printf("PROGRAM FROM XIP: a source inside the app's const loader copy (%u bytes at +%u)\n", n,
+               (unsigned)(s - own_ldr));
+        exit(1);
+    }
     if (off < T_AREA || off + n > T_AREA + 0x5000u) { bad_erase++; return -8; }
     for (i = 0; i < n; i++) nor[off + i] &= s[i];
     return 0;
@@ -296,6 +303,32 @@ int main(int argc, char **argv)
     nor[T_AREA + 0x4Cu] = 'X';
     bad += check("boot: not a Felucca-family loader is erased", ota_boot_cleanup() == 1 && area_erased());
     bad += check(".. restaged", ota_restage() == 0 && own_in_area());
+    /* the boot (platform.c ota_boot_stage) over what other firmwares leave: each ends with our loader, byte for byte,
+     * staged from the app's copy (through RAM: ota_prog above stops the test on a source in that copy) */
+    {
+        static uint8_t ours[0x5000];
+        memcpy(ours, nor + T_AREA, sizeof ours);                 /* (our loader as ota_restage stages it) */
+        memset(nor + T_AREA, 0xFF, 0x5000);
+        bad += check("boot over an empty staging area: staged (1), ours", ota_boot_stage() == 1 && own_in_area());
+        bad += check(".. the next boot: nothing to do (0)", ota_boot_stage() == 0 && own_in_area());
+        memset(nor + T_AREA, 0xFF, 0x5000);                      /* the layout the official V15 leaves after installing */
+        memcpy(nor + 0xE6000u, own_ldr, own_len);                /* TransitFM1: the package's loader at 0xE6000 */
+        bad += check("boot after V15 installed TransitFM1 (its loader at 0xE6000, 0xE0000 empty): staged, ours",
+                     ota_boot_stage() == 1 && own_in_area());
+        memset(nor + 0xE6000u, 0xFF, 0x5000);
+        if (foreign) {                                           /* M-VAVE's loader staged at 0xE0000, its record too */
+            uint32_t flen, fo = ota_entry(foreign, &flen);
+            memset(nor + T_AREA, 0xFF, 0x5000);
+            memcpy(nor + T_AREA + 32u, foreign + fo + 32u, flen - 32u);
+            ota_stage_head(flen - 32u);
+            memcpy(nor + T_AREA + 0x4F00u, committed_parm, 112);
+            bad += check("boot over M-VAVE's loader at 0xE0000 (and a record): erased, ours staged",
+                         ota_boot_stage() == 1 && own_in_area() && nor[T_AREA + 0x4F00u] == 0xFF);
+        }
+        memcpy(nor + T_AREA, ours, sizeof ours);
+        nor[T_AREA + 0x300u] ^= 0x04;                            /* a damaged copy of ours */
+        bad += check("boot over a damaged copy of our loader: restaged, ours", ota_boot_stage() == 1 && own_in_area());
+    }
     /* the two checks in step: the same answer on damaged copies of the staged loader */
     memcpy(keep, nor + T_AREA, sizeof keep);
     srand(1);

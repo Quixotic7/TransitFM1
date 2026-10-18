@@ -20,12 +20,13 @@ for you to install the next firmware. Three things make it a good stopover:
   at any point before that last sector leaves an FM-1 that comes back in update mode: switch it on, run the
   installer again.
 
-> **Status: 0.1, tested on an FM-1** (2026-10-17, docs/SAFETY.md "On the unit"): installed from the web installer;
-> TransitFM1 to other firmwares and back; the USB cable pulled during an install, and the install finished from
-> update mode; Bubba Machine installed, refused by the installer, and back through V15. The host tests (`tests/run_tests.sh`)
-> measure every cut point. Installing firmware is still at your own risk: keep the
-> [FM-1 Transporter](https://github.com/kurogedelic/FM-1-transporter) or
-> [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker) in mind for the one window that is left.
+> **Status: do not install 0.1 from the official V15.** Its first boot after V15 faults while it stages its rescue
+> loader, and the unit ends in the USB rescue, then the ROM's USB boot (seen on a unit, recovered with the
+> Transporter). With a DAW sending MIDI to the FM-1, 0.1 also stops taking the installer's messages.
+> **0.1.1 fixes both** (docs/SAFETY.md "0.1's two bugs"); it is host-tested and waits for its test on a unit: the
+> hop from V15. From ChoralRoot, 0.1 worked on the unit: to other firmwares, and a cable pulled mid-install came
+> back in update mode. Keep the [FM-1 Transporter](https://github.com/kurogedelic/FM-1-transporter) or
+> [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker) at hand.
 
 ## How much of each write is protected
 
@@ -38,7 +39,7 @@ neither a working stub nor a whole firmware.
 | TransitFM1 → the official V15 (any firmware without ChoralRoot's stub) | 2432 | 2415 | **16**, the last sector only (about 0.1 s) |
 | TransitFM1 ↔ ChoralRoot 0.25.1 | 2279 | 2278 | **0**: sector 0x4000 is the same bytes in both |
 | TransitFM1 → a later TransitFM1 | 256 | 255 | **0** |
-| the official V15 → TransitFM1 | 2432 | 2414 | 17, the first sector only (once per unit) |
+| the official V15 → TransitFM1 | 2432 | none to update mode: 2414 end in the ROM's USB boot (V15 stages the loader at 0xE6000, where the stub does not look), recoverable with MvaveFM1Unbricker | 17, the first sector (once per unit) |
 
 Compare the plain address-order write that V15, Felucca and most custom firmwares use. Once the first sector is
 written, no rescue code is left on the unit, so almost the whole one-to-two-minute write is unprotected.

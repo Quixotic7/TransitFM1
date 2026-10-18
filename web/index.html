@@ -44,7 +44,6 @@
   label.check { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; }
   table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  td:last-child { white-space: nowrap; }
   a { color: var(--acc); }
   footer { color: var(--dim); font-size: 0.9rem; margin-top: 32px; }
 </style>
@@ -57,12 +56,12 @@
 
   <section class="card warn">
     <h2>Before you start</h2>
-    <p style="margin:0"><b>TransitFM1 <span id="ver">…</span> has been tested on an FM-1:</b> installed from this page,
-      to other firmwares and back, and with the USB cable pulled in the middle of an install, which it finished from
-      update mode. Installing firmware is still at your own risk; the one moment it cannot guard is the next
-      firmware's very last sector (about a tenth of a second). If an FM-1 ever stays dark:
-      <a href="https://github.com/Quixotic7/MvaveFM1Unbricker">MvaveFM1Unbricker</a> or the
-      <a href="https://github.com/kurogedelic/FM-1-transporter">FM-1 Transporter</a>.</p>
+    <p style="margin:0"><b>Do not install TransitFM1 0.1 over the official V15.</b> 0.1 has a bug: its first start after
+      V15 crashes while it sets up its rescue loader, and the FM-1 ends in its USB rescue, then in the chip's USB boot
+      (recoverable with <a href="https://github.com/Quixotic7/MvaveFM1Unbricker">MvaveFM1Unbricker</a> on Windows or
+      Linux, or the <a href="https://github.com/kurogedelic/FM-1-transporter">FM-1 Transporter</a>). It also stops
+      listening to the installer while a DAW sends MIDI to the FM-1. <b>0.1.1 fixes both</b> and replaces it here once it
+      has been tried on an FM-1. From ChoralRoot, 0.1 works. Installing firmware is at your own risk.</p>
   </section>
 
   <section class="card">
@@ -116,7 +115,8 @@
       <tr><th>hop</th><th>cut points with no rescue</th></tr>
       <tr><td>TransitFM1 → the official V15, or any firmware without ChoralRoot's stub</td><td>16 of 2432: the last sector</td></tr>
       <tr><td>TransitFM1 ↔ ChoralRoot</td><td>none</td></tr>
-      <tr><td>the official V15 → TransitFM1</td><td>17 of 2432: the first sector</td></tr>
+      <tr><td>the official V15 → TransitFM1</td><td>17 of 2432 (the first sector); the other cuts end in the chip's USB
+        boot, not update mode (V15 stages the loader where the boot stub does not look)</td></tr>
     </table>
     <p class="meta">A power cut after every flash erase and every programmed page, judged by the boot stub's own code (host
       tests). <a href="https://github.com/Quixotic7/TransitFM1/blob/main/docs/SAFETY.md">How it works</a>. Not from Bubba

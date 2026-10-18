@@ -20,9 +20,11 @@ static void recovery_poll(void)
     }
 }
 
+static void midi_drain(void);
 static void recovery_step(void)
 {
     recovery_poll();
+    midi_drain();
     usb_retry(fm1_ms);
     if (usb.uboot_req) {
         usb_detach();
@@ -58,6 +60,7 @@ static void recovery_main(void)
     /* No persist_boot or OTA cleanup: no flash write just for entering rescue. */
     flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;
     lcd_init();
+    lcd_ready = 1;
     lcd_fill(0, 0, 240, 240, C_BLACK);
     draw_text_box(0, 64, 240, &FONT_S, APP_NAME " USB RESCUE", C_WHITE, 1);
     draw_text_box(0, 96, 240, &FONT_S, "CONNECT USB", C_WHITE, 1);

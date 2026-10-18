@@ -169,6 +169,11 @@ static uint32_t flash_off(const uint8_t *lg)        /* flash.bin offset in the l
     return 0;
 }
 
+/* --staged-elsewhere: the running firmware staged NEW's loader outside the area the stub reads (the official V15
+ * puts it at 0xE6000; the stub and TransitFM1 use 0xE0000). The stub then finds no loader of ours: a cut after its
+ * sector is written ends in the ROM's USB boot (UBOOT), recoverable with MvaveFM1Unbricker, not in update mode */
+static int staged_elsewhere;
+
 static int check(const char *what, int ok) { printf("%-56s %s\n", what, ok ? "ok" : "FAIL"); return ok ? 0 : 1; }
 
 /* ---- the interruption model ---- */
@@ -222,7 +227,7 @@ static void restore(const uint8_t *base)
 static int cut_case(const char *name, const uint8_t *base, int base_stub, int base_whole, uint32_t want_u)
 {
     static uint8_t head[0x4000];
-    uint32_t n, k, cnt[4] = {0, 0, 0, 0}, first_u = 0, last_u = 0, req, i;
+    uint32_t n, k, cnt[5] = {0, 0, 0, 0, 0}, first_u = 0, last_u = 0, req, i;
     volatile uint32_t stub_done = 0, bad = 0, marker_free = 1;   /* (live across the setjmp of the cuts) */
     uint32_t new_stub = has_marker(new_fl), commit = new_stub ? LDR_MARK_SEC : LDR_STUB_SEC;
     stub_result_t r;
@@ -256,8 +261,9 @@ static int cut_case(const char *name, const uint8_t *base, int base_stub, int ba
                     (base_stub && !memcmp(nor + LDR_STUB_SEC, base + LDR_STUB_SEC, 0x1000));
         if (stub_here) {
             uint32_t d = stub_says(&r);
-            st = d == STUB_BOOT ? 3 : 2;
-            bad += d == STUB_UBOOT;                                   /* (the staged loader is there: never) */
+            st = d == STUB_BOOT ? 3 : d == STUB_UBOOT ? 4 : 2;
+            bad += d == STUB_UBOOT && !staged_elsewhere;              /* (the staged loader is there: never) */
+            bad += d == STUB_LOADER && staged_elsewhere;              /* (nothing of ours staged: never) */
             if (d == STUB_BOOT)                                       /* boot: only the finished image */
                 bad += k != n || memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, LDR_APP_HI - LDR_APP_LO) != 0;
         } else if (!new_stub && !memcmp(nor + LDR_APP_LO, new_fl + LDR_APP_LO, LDR_APP_HI - LDR_APP_LO)) {
@@ -285,6 +291,7 @@ static int cut_case(const char *name, const uint8_t *base, int base_stub, int ba
     printf("  %-34s %5u cut points: %4u rescue, %u boot (the end), %u old firmware whole, %2u UNPROTECTED",
            name, n, cnt[2], cnt[3], cnt[0], cnt[1]);
     if (cnt[1]) printf(" (cuts %u..%u)", first_u, last_u);
+    if (cnt[4]) printf(", %u to the ROM's USB boot", cnt[4]);
     printf("; %u requests  %s\n", req, bad ? "FAIL" : "ok");
     return bad != 0;
 }
@@ -296,7 +303,8 @@ int main(int argc, char **argv)
     uint32_t ofo, nfo;
     volatile int bad = 0;                               /* (live across the setjmp of the cuts) */
     int rc;
-    if (argc < 3) { printf("usage: ldr_test OLD.fwsc NEW.fwsc [SAME_STUB.fwsc OTHER_OLD.fwsc [OLD_STUB.fwsc]]\n"); return 2; }
+    if (argc > 1 && !strcmp(argv[1], "--staged-elsewhere")) { staged_elsewhere = 1; argc--; argv++; }
+    if (argc < 3) { printf("usage: ldr_test [--staged-elsewhere] OLD.fwsc NEW.fwsc [SAME_STUB.fwsc OTHER_OLD.fwsc [OLD_STUB.fwsc]]\n"); return 2; }
     old = load_logical(argv[1], &olen);
     logical = load_logical(argv[2], &logical_len);
     ofo = flash_off(old);
@@ -392,10 +400,16 @@ int main(int argc, char **argv)
         rx_full = 0;
         uint32_t fcrc;
         ota_ufw(hdr, &fo, &fl, &ota_off, &ota_len, &fcrc);           /* the staged loader, as ota.c's step 1 leaves it */
+        if (staged_elsewhere) {                                       /* (V15: at 0xE6000, our area empty) */
+            memcpy(nor + 0xE6000u + 0x20u, logical + ota_off + 0x20, ota_len - 0x20);
+            bad += check("staged elsewhere: the stub finds no loader at 0xE0000",
+                         stub_loader_check(nor + STUB_LDR_OFF) != STUB_LD_OK);
+        } else {
         memcpy(nor + T_OTA + 0x20u, logical + ota_off + 0x20, ota_len - 0x20);
         ota_stage_head(ota_len - 0x20);
         bad += check("stub: the staged loader passes its check", stub_loader_check(nor + STUB_LDR_OFF) == STUB_LD_OK);
-        {   /* the staged loader's life over an install: step 1's record beside it, the loader's write, its finish
+        }
+        if (!staged_elsewhere) {   /* the staged loader's life over an install: step 1's record beside it, the loader's write, its finish
              * (the record's sector erased), the app's first boot (ota.c ota_boot_cleanup): the loader still there */
             uint8_t r[112] = {0};
             stub_result_t sr;

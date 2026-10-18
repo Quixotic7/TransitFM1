@@ -73,7 +73,7 @@ Power was cut after every erase and every programmed page. The flash as it stood
 | hop | cut points | rescued | the end | old firmware whole | unprotected |
 | --- | --- | --- | --- | --- | --- |
 | TransitFM1 → the official V15 | 2432 | 2415 | 1 | 0 | **16** (the last sector) |
-| the official V15 → TransitFM1 | 2432 | 2414 | 1 | 0 | 17 (the marker's erase, then the first sector) |
+| the official V15 → TransitFM1 | 2432 | 0 (2414 to the ROM's USB boot) | 1 | 0 | 17 (the marker's erase, then the first sector) |
 | TransitFM1 → ChoralRoot 0.25.1, and back | 2279 | 2278 | 1 | 0 | **0** |
 | TransitFM1 → another TransitFM1 body | 256 | 255 | 1 | 0 | **0** |
 | a stub-less layout → TransitFM1 | 273 | 255 | 1 | 1 | 16 |
@@ -88,7 +88,12 @@ package; the loader check against the stub's on 20000 damaged copies) pass too.
 - **Arriving is as safe as the firmware you leave.** The write into TransitFM1 is done by the loader your current
   firmware stages: ours, if that firmware stages the package's loader, as V15, Felucca, SLOOP and ChoralRoot do.
   Until sector 0x4000 holds the stub, no rescue code of ours is on the unit: the first 16 or 17 flash operations,
-  once per unit. From ChoralRoot there is no such window.
+  once per unit. From ChoralRoot there is no such window. **From the official V15** the stub cannot hand over to
+  update mode at all during that write: V15 stages the loader at 0xE6000, and the stub looks at 0xE0000 only (seen
+  in a Transporter dump, 2026-10-17). A cut after the first sector ends in the ROM's USB boot (`ldr_test
+  --staged-elsewhere`: 2414 of 2432 cut points), recoverable with MvaveFM1Unbricker on Windows or Linux or the
+  Transporter; not dark, but not update mode either. TransitFM1's own first boot then stages its loader at 0xE0000,
+  and from there every write is guarded as above.
 - **Leaving has its window at the end:** the new firmware's sector 0x4000. A torn sector there may leave the unit
   dark (the Transporter).
 - **A rescue that fails twice** (no normal boot between two arrivals) ends in the ROM's USB boot. That's
@@ -96,27 +101,55 @@ package; the loader check against the stub's on 20000 damaged copies) pass too.
 - **Data.** TransitFM1 reads and writes nothing but its staging area (0xE0000..0xE4FFF). What the previous firmware
   stored stays where it was. The next firmware finds it, as it would after any install.
 
-## On the unit (0.1, 2026-10-17)
+## 0.1's two bugs (found on a unit, 2026-10-17; fixed in 0.1.1)
 
-The owner, with the release package (`transit-0.1.fwsc`, sha256 `9bcee26a…`):
+Found by the RemoteFM1 session, a clone of TransitFM1, on unit 5BD75BE3 (its handoff:
+`../RemoteFM1/handoff/TRANSITFM1-FIXES.md`).
 
-- **Installed from the web installer** (<https://quixotic7.github.io/TransitFM1/>): no problems.
-- **TransitFM1 to other firmwares**: works.
-- **The USB cable pulled during an install**: the FM-1 came back in update mode, and the install finished from
-  there. This is the foreign order and the kept loader working on the unit, not only on the host.
-- **Bubba Machine and back**: Bubba Machine installed; over it the web installer refused (Bubba Machine accepts only
-  M-VAVE's own package) and said to go to the official V15 first; from V15, TransitFM1 again: works.
+1. **The loader restage faulted.** `ota_restage` handed `ota_prog` the app's const copy of the loader, which lives in
+   XIP flash. The flash driver reads a page's bytes while the flash is out of XIP (`hal/fm1_flash.h fl_prog_ram`),
+   so the first page faulted. It ran at every boot whose staging area was not our loader, byte for byte, and that
+   is **the first boot after the official V15 installs TransitFM1** (V15 stages at 0xE6000; 0xE0000 is empty). It
+   ran before `lcd_init`, so no crash screen showed. After two faults came the boot guard's "TRANSIT USB RESCUE".
+   There an install's step 1 restaged again, faulted again, and dropped to the ROM's USB boot. The Transporter dump
+   showed the app area exactly transit-0.1, 0xE0000..0xE4FFF erased, and TransitFM1's loader at 0xE6000. From
+   ChoralRoot, which stages at 0xE0000, the staged loader was already ours, and nothing was restaged: that is why
+   the earlier tests passed.
+   **0.1.1:** `ota_restage` copies each piece to RAM before programming it. The app's `ota_prog` refuses any source
+   in the XIP window (`hal/fm1_xip.h fm1_in_xip`); the audit found no other such call (the record and the head are
+   RAM; the loader programs from RAM only). The boot stages after `lcd_init` ("STAGING THE LOADER"), and
+   `fm1_fault` brings the panel up if a fault comes first. Tests: `tests/ota_test.c`'s flash model stops on a
+   program from the loader copy (0.1's `ota.c` stops there at once). The boot (`ota_boot_stage`) is tested over an
+   empty area, over V15's layout (our loader at 0xE6000, 0xE0000 empty), over M-VAVE's loader and a record at
+   0xE0000, and over a damaged copy of ours: each ends with ours staged.
+2. **MIDI in was never drained.** The USB stack queues every channel and real-time message and NAKs EP1 OUT while its
+   ring has fewer than 24 of 64 slots free. Dinghy's audio drained it, and went with the sound. After about 40
+   events from any app (a DAW's clock), the installer's SysEx could no longer arrive: `--info` answered, then step 1
+   stalled. **0.1.1:** the app and its USB rescue drop non-SysEx MIDI every pass of the main loop. The loader is
+   unchanged, byte for byte (`ota.bin` sha256 `68599862…`): in update mode, close any app that sends MIDI to the
+   FM-1 (as with every installer).
 
-Not reported separately: OCT- at power-on (the stub's rescue key, tested on ChoralRoot's units), TransitFM1 to and
-from ChoralRoot, another firmware's own installer over TransitFM1. The one window left, a cut inside the new
-firmware's sector 0x4000 (about 0.1 s), cannot be hit by hand.
+## On the unit
+
+**0.1** (2026-10-17, the owner, `transit-0.1.fwsc` sha256 `9bcee26a…`). Installed from the web installer over
+ChoralRoot: no problems. TransitFM1 to other firmwares: works. The USB cable pulled during an install from
+TransitFM1: the FM-1 came back in update mode, and the install finished from there. This is the foreign order
+and the kept loader working on a unit. Bubba Machine installed; over it the web installer refused (Bubba Machine
+accepts only M-VAVE's own package) and said to go to V15 first. **The hop from V15 back to TransitFM1 met bug 1**
+(above): TRANSIT USB RESCUE, then the ROM's USB boot, recovered with the Transporter.
+
+**0.1.1** (`transit-0.1.1.fwsc`, sha256 `e074eabd…`): host-tested; on a unit still to do, first of all **V15 →
+TransitFM1**: the first boot shows "STAGING THE LOADER", then the TRANSIT screen with no red line; then OCT- at
+power-on gives three flashes and update mode; an install with a DAW sending clock to the FM-1 goes through.
 
 ## The device test plan
 
 The steps for the next version, with the Transporter at hand, a full battery, and M-VAVE's `FM-1.fwsc`:
 
-1. From V15 (or ChoralRoot), install `build/transit.fwsc` with `tools/fm1_install.py`.
-   - The screen should read TRANSIT, "AS V15 (FM-1_015)", and no red line.
+1. **From the official V15** (and from ChoralRoot), install the package with `tools/fm1_install.py` or the web
+   installer's "Install a package file".
+   - The first boot after V15 shows "STAGING THE LOADER" for a moment; then the screen reads TRANSIT,
+     "AS V15 (FM-1_015)", and no red line.
    - `python3 tools/fm1_install.py --info` should give `FM-1_015 [running]` on the port "FM-1".
 2. Hold **OCT-** at power-on. Expect three short flashes, a black screen, and `ota-FM-1_900` ("Felucca Update").
    Install `transit.fwsc` again to leave (nothing is written).
@@ -127,3 +160,4 @@ The steps for the next version, with the Transporter at hand, a full battery, an
 5. **TransitFM1 → ChoralRoot → TransitFM1.** ChoralRoot's `--debug` should report "boot stub v3 ... marker ok".
 6. **Another firmware's own installer** (the FM-1 Firmware Hub, a Felucca release): it should see an FM-1 on V15
    and install over it.
+7. **A DAW sending MIDI** (clock, notes) to the FM-1 for a minute, then an install: step 1 must go through.

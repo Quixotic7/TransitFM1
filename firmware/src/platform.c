@@ -28,6 +28,7 @@ enum { BTN_OCT_DOWN = 0, BTN_OCT_UP = 1, BTN_FX = 2, BTN_SEL = 3, BTN_ENV = 4, B
 #include "fm1_input.h"
 #include "fm1_timer.h"
 #include "fm1_lcd_hw.h"
+#include "fm1_xip.h"
 #include "bootguard.h"
 
 #ifndef APP_NAME
@@ -76,6 +77,7 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
 }
 
 static uint8_t recovery_active;
+static uint8_t lcd_ready;                       /* lcd_init done (fm1_fault: a fault before it brings the panel up) */
 #include "transit_loader.h"                     /* build/gen: our ota.bin (tools/build.py) */
 #define OTA_OWN_LDR TRANSIT_LDR
 #define OTA_OWN_LEN ((uint32_t)sizeof TRANSIT_LDR)
@@ -95,10 +97,14 @@ static int ota_erase(uint32_t off)
         return -8;
     return fl_erase4k(off, &took);
 }
+/* the flash driver reads the source while the flash is out of XIP (hal/fm1_flash.h fl_prog_ram): a source in XIP
+ * (code, a const array) would fault, so it is refused here, whoever calls (ota.c copies to RAM first) */
 static int ota_prog(uint32_t off, const void *p, uint32_t n)
 {
     if (!ota_in_area(off, n))
         return -8;
+    if (fm1_in_xip(p, n))
+        return -9;
     return fl_write(off, p, n);
 }
 static int ota_fread(uint32_t off, void *p, uint32_t n) { return st_read(off, p, n); }
@@ -144,10 +150,17 @@ extern void isr_timer5(void);
 
 static void app_main(void);
 
-/* ---- the main loop's duties: watchdog, USB, the installer's update request */
+/* MIDI in: nothing here plays it, so it is dropped. The USB stack queues every channel and real-time message in
+ * midi_in_q and stops taking packets (EP1 OUT NAKed, usb.c ep1_take) while the ring has less than EP1_ROOM free:
+ * undrained, a DAW's clock or notes fill it in about 40 events and the installer's SysEx can no longer arrive (0.1:
+ * Dinghy's audio ISR had drained it, and went with the sound). SysEx takes another path (sysex_byte, the ota frame) */
+static void midi_drain(void) { mi_r = mi_w; }
+
+/* ---- the main loop's duties: watchdog, MIDI in, USB, the installer's update request */
 static void platform_poll(void)
 {
     fm1_wdt_feed();
+    midi_drain();
     usb_retry(fm1_ms);
     ota_service();
     if (usb.ota_req) {
@@ -171,6 +184,10 @@ static void fm1_fault(const fm1_crash_t *c)
 {
     char b[12];
     uint32_t i, t0, v[3] = {c->vec, c->pc, c->rets};
+    if (!lcd_ready) {
+        lcd_ready = 1;                          /* (before: a fault inside lcd_init does not come back here) */
+        lcd_init();
+    }
     lcd_fill(0, 0, 240, 240, RGB(160, 0, 0));
     draw_text_box(0, 20, 240, &FONT_S, APP_NAME " CRASH", C_WHITE, 1);
     for (i = 0; i < 3u; i++) {
@@ -214,14 +231,17 @@ void fm1_cstart(void)
     if (boot_mode == BOOT_RECOVERY)
         recovery_main();                        /* the boot guard's second crash: the USB rescue */
     flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;
+    lcd_init();                                 /* first: anything that faults from here on shows its crash screen */
+    lcd_ready = 1;
+    lcd_fill(0, 0, 240, 240, C_BLACK);
     if (flash_ok) {
-        ota_boot_cleanup();                     /* what an update left: our whole loader stays, anything else goes */
-        loader_state = ota_own_staged() ? 0 : ota_restage() == 0 ? 1 : -1;
+        draw_text_box(0, 110, 240, &FONT_S, "STAGING THE LOADER", C_WHITE, 1);
+        lcd_sync();
+        loader_state = ota_boot_stage();        /* what an update left goes; our whole loader stays, or is staged */
+        lcd_fill(0, 0, 240, 240, C_BLACK);
     } else {
         loader_state = -2;
     }
-    lcd_init();
-    lcd_fill(0, 0, 240, 240, C_BLACK);
     fm1_input_init();
     usb_start();
     fm1_timer5_start(isr_timer5, 4);
