@@ -58,7 +58,9 @@
     <h2>Before you start</h2>
     <p style="margin:0"><b>For Baud Girl, go through the official V15:</b> install V15 from here, then Baud Girl with
       its own installer. Its image is larger than TransitFM1 can write; TransitFM1 0.1.2 let Baud Girl's installer
-      try anyway and left an FM-1 dark, so 0.1.2 was withdrawn. 0.1.3 refuses such firmware itself.</p>
+      try anyway and left an FM-1 dark, so 0.1.2 was withdrawn. 0.1.3 refuses such firmware itself.
+      <b>M-VAVE's V16</b> the same way: install V15 from here, then V16 with M-VAVE's updater (V16 changes the boot
+      area, which TransitFM1 never writes).</p>
     <p>Arriving from V15, a cut-off write ends in the chip's USB boot rather than update mode: have
       <a href="https://github.com/Quixotic7/MvaveFM1Unbricker">MvaveFM1Unbricker</a> (Windows or Linux) or the
       <a href="https://github.com/kurogedelic/FM-1-transporter">FM-1 Transporter</a> in mind. Close any app that sends
@@ -98,8 +100,8 @@
     <h2>Leaving TransitFM1</h2>
     <p style="margin:0">Install the next firmware with its own installer: it sees an FM-1 on the official V15. Whatever
       the package, TransitFM1 writes it with its own update loader, the new firmware's first sector last. To go back to
-      stock, install M-VAVE's <code>FM-1.fwsc</code>. <b>Baud Girl</b>, and any firmware whose image is larger than
-      the app area: install V15 first, then that firmware from V15.</p>
+      stock, install M-VAVE's <code>FM-1.fwsc</code>. <b>Baud Girl</b>, <b>V16</b>, and any firmware whose image
+      is larger than the app area: install V15 first, then that firmware from V15.</p>
     <details>
       <summary>Install a package file from here</summary>
       <p class="meta">An FM-1 package (<code>.fwsc</code>), for example M-VAVE's <code>FM-1.fwsc</code> or the release

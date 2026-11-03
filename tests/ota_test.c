@@ -13,6 +13,7 @@
 #include <string.h>
 
 #define FELUCCA_ID "FM-1_015"
+#define TRANSIT_INFO "TransitFM1 9.9"
 #define FELUCCA_OTA_DRYRUN 0
 #define T_AREA 0xE0000u
 #define T_PARM_ID "ota-FM-1_015"
@@ -28,6 +29,8 @@ static uint8_t committed_parm[112];
 static int32_t last_code;
 static uint8_t *corrupt_at;              /* flip a served byte */
 static uint32_t own_len, erases;
+static uint8_t info_reply[64];
+static uint32_t info_len;
 
 static uint32_t pack7(const uint8_t *in, uint32_t n, uint8_t *out)
 {
@@ -64,6 +67,11 @@ static int ota_wire_send(const uint8_t *p, uint32_t n)
     uint8_t u[64] = {0}, m[600];
     uint32_t d, addr, len, i, s = 0;
     if (p[0] != 0xF0 || p[n - 1] != 0xF7) { printf("bad wire framing\n"); exit(1); }
+    if (p[1] == 0x7D) {                                   /* TransitFM1's own identity, not M-UPGRADE */
+        if (n > sizeof info_reply) { printf("info reply too long\n"); exit(1); }
+        memcpy(info_reply, p, n); info_len = n;
+        return 0;
+    }
     d = unpack7h(p + 1, n - 2, u);
     if (u[2] == 0x11) { ident_replies++; return 0; }
     if (d != 15 || u[2] != 0x30) { printf("unexpected device msg cmd %02x len %u\n", u[2], d); exit(1); }
@@ -217,6 +225,25 @@ int main(int argc, char **argv)
                      ota_msg[2] == 0x11 && !memcmp(ota_msg + 6, FELUCCA_ID, sizeof FELUCCA_ID - 1));
     }
 
+    /* TransitFM1's own identity (issue 1): its query answered, the handshake unchanged */
+    reset_dev();
+    {
+        static const uint8_t q[5] = {0x7D, 'T', 'F', '1', 0x01};
+        static const uint8_t want[] = "\xF0\x7DTF1\x02TransitFM1 9.9\xF7";
+        uint32_t i, ok7 = 1;
+        memcpy(rx, q, 5); rx_len = 5; rx_full = 1;
+        ota_service();
+        for (i = 1; i + 1 < info_len; i++) ok7 &= info_reply[i] < 0x80;
+        bad += check("F0 7D 'TF1' 01 F7 answered with \"TransitFM1 X.Y\", 7-bit, the frame released",
+                     info_len == sizeof want - 1 && !memcmp(info_reply, want, info_len) && ok7 && !rx_full);
+        bad += check("... and no handshake reply for it", ident_replies == 0);
+        info_len = 0;
+        memcpy(rx, q, 4); rx_len = 4; rx_full = 1;       /* a shorter frame is not ours */
+        ota_service();
+        bad += check("a different 7D frame: no reply", info_len == 0);
+        rx_full = 0;
+    }
+
     /* a unit with nothing staged (a raw write, a Transporter restore): step 1 stages our own loader */
     reset_dev();
     rc = session();
@@ -258,8 +285,12 @@ int main(int argc, char **argv)
         logical = own_pkg; logical_len = own_pkg_len;
         ota_boot_cleanup();
     }
-    {   /* OTA_LONG_PKG: a package whose flash.bin reaches past 0x93000 (as Baud Girl's): refused before anything */
-        const char *lp = getenv("OTA_LONG_PKG");
+    {   /* OTA_LONG_PKG: a package whose flash.bin reaches past 0x93000 (as Baud Girl's): refused before anything;
+         * OTA_V16_PKG: M-VAVE's V16 (0xA9000) the same way, after its header only (issue 1: 2 requests on a unit) */
+        const char *lps[2] = {getenv("OTA_LONG_PKG"), getenv("OTA_V16_PKG")};
+        uint32_t j;
+        for (j = 0; j < 2u; j++) {
+        const char *lp = lps[j];
         if (lp && *lp) {
             size_t ll;
             uint8_t *lg = load_logical(lp, &ll);
@@ -269,9 +300,11 @@ int main(int argc, char **argv)
             rc = session();
             logical = own_pkg; logical_len = own_pkg_len;
             free(lg);
-            bad += check("a flash.bin longer than the app area: refused (-4), nothing committed, the area untouched",
-                         rc == -4 && !committed && erases == 0u && !memcmp(nor + T_AREA, area, sizeof area) &&
-                         own_in_area());
+            bad += check(j ? "V16: refused (-4) after its header, nothing committed, the area untouched"
+                           : "a flash.bin longer than the app area: refused (-4), nothing committed, the area untouched",
+                         rc == -4 && last_code == -4 && !committed && erases == 0u && requests <= 2u &&
+                         !memcmp(nor + T_AREA, area, sizeof area) && own_in_area());
+        }
         }
     }
     /* failures leave our loader as it is */
@@ -363,5 +396,7 @@ int main(int argc, char **argv)
     bad += check("ota_staged == stub_loader_check on 20000 damaged copies", agree && oks > 100u && oks < 19000u);
 
     printf("%s\n", bad ? "OTA TEST FAILED" : "ota test passed");
+    free(foreign);                                        /* (LeakSanitizer on Linux, with V15_PKG set) */
+    free(own_pkg);
     return bad != 0;
 }

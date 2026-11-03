@@ -170,5 +170,11 @@ if (process.env.LONG_PKG) {   // a flash.bin past the app area (as Baud Girl's):
   ok(/larger than TransitFM1 can install/.test(e) && /official V15 first/.test(e), "a package past the app area: refused, go through V15");
 }
 
+if (process.env.V16_PKG) {   // M-VAVE's V16 (FM-1_016, flash.bin 0xA9000): refused, by name
+  let e = "";
+  try { await packageFrom(new Uint8Array(readFileSync(process.env.V16_PKG))); } catch (x) { e = x.message; }
+  ok(/V16/.test(e) && /larger than TransitFM1 can install/.test(e) && /official V15 first/.test(e), "V16: refused, V15 first, then M-VAVE's updater");
+}
+
 console.log(fails ? `installer: ${fails} of ${checks} FAILED` : `installer tests passed (${checks})`);
 process.exit(fails ? 1 : 0);

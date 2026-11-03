@@ -49,11 +49,17 @@ static volatile uint32_t fm1_ms;                /* milliseconds since power-on (
 #include "lcd.c"
 #define CV_MAX (240u * 64u)                     /* the biggest text box drawn at once */
 #include "gfx.c"
+#define C_OFF RGB(110, 110, 110)                /* the screen's grey and red (transit.c, ota_show) */
+#define C_BAD RGB(255, 90, 60)
 
 #define FELUCCA_OTA 1
 #define FELUCCA_CDC 0
 #define FELUCCA_UAC 0                           /* no sound, so no USB audio: the smallest USB device that updates */
 #define FELUCCA_UART 0
+/* TransitFM1's own identity, where no installer looks: the USB serial number and an answer to
+ * F0 7D 'T' 'F' '1' 01 F7 (ota.c). The handshake stays FM-1_015 */
+#define TRANSIT_INFO "TransitFM1 " APP_VER
+#define TRANSIT_SERIAL "TransitFM1-" APP_VER
 #include "usb.c"
 
 /* ---- flash: read anywhere; erase / program only the update's staging area */
@@ -108,6 +114,46 @@ static int ota_prog(uint32_t off, const void *p, uint32_t n)
     return fl_write(off, p, n);
 }
 static int ota_fread(uint32_t off, void *p, uint32_t n) { return st_read(off, p, n); }
+/* why an install was refused or failed, so nobody is left guessing (TransitFM1 issue 1: V16 showed only
+ * "UPDATE FAILED"). Nothing is installed in any of these cases: the session commits nothing before it returns */
+static void ota_show_refusal(int32_t code)
+{
+    const char *a, *b = "";
+    char n[16] = "CODE -";
+    uint32_t v = code < 0 ? (uint32_t)-code : (uint32_t)code, i = 6, k;
+    draw_text_box(0, 116, 240, &FONT_S, "FAILED", C_BAD, 1);
+    switch (code) {
+    case -4:                                        /* flash.bin past the app area: V16, Baud Girl */
+        a = "TOO LARGE FOR TRANSIT:";
+        b = "INSTALL V15 FIRST";
+        break;
+    case -3:
+        a = "NOT A WHOLE FIRMWARE";
+        break;
+    case -2:
+        a = "PACKAGE DAMAGED";
+        break;
+    case -1:
+    case -13:
+        a = "THE INSTALLER STOPPED";
+        b = "TRY AGAIN";
+        break;
+    default:                                        /* -14, -20..-25: the flash; the next boot restages */
+        a = "FLASH WRITE FAILED";
+        b = "SWITCH OFF AND ON";
+        break;
+    }
+    draw_text_box(0, 148, 240, &FONT_S, a, C_WHITE, 1);
+    if (*b)
+        draw_text_box(0, 168, 240, &FONT_S, b, C_WHITE, 1);
+    for (k = 1000; k > v && k > 1u; k /= 10u)
+        ;
+    for (; k; k /= 10u)
+        n[i++] = (char)('0' + v / k % 10u);
+    n[i] = 0;
+    draw_text_box(0, 200, 240, &FONT_S, "NOTHING WAS INSTALLED", C_OFF, 1);
+    draw_text_box(0, 220, 240, &FONT_S, n, C_OFF, 1);
+}
 static void ota_show(uint32_t step, int32_t code)
 {
     static const char *const STEP[] = {"", "PACKAGE", "", "LOADER", "CONFIRM", "RESTART"};
@@ -116,8 +162,10 @@ static void ota_show(uint32_t step, int32_t code)
     draw_text_box(0, 92, 240, &FONT_S, "UPDATE", C_WHITE, 1);
     if (step < 9u)
         draw_text_box(0, 124, 240, &FONT_S, STEP[step < 6u ? step : 0], C_WHITE, 1);
+    else if (code == 1)
+        draw_text_box(0, 124, 240, &FONT_S, "DRY RUN OK", C_WHITE, 1);
     else
-        draw_text_box(0, 124, 240, &FONT_S, code == 1 ? "DRY RUN OK" : "FAILED", C_WHITE, 1);
+        ota_show_refusal(code);
 }
 static void ota_commit(const uint8_t *parm)
 {

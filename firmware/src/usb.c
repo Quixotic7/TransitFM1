@@ -186,9 +186,15 @@ static const uint8_t CFG_DESC[] = {
 #ifndef FELUCCA_USB_PID
 #define FELUCCA_USB_PID 0x0001   /* the update loader is 0x0002 */
 #endif
+#ifdef TRANSIT_INFO
+#define USB_ISERIAL 3            /* TransitFM1: its name and version as the serial number (STR3), for apps that
+                                  * tell it from V15; installers go by the product name and the handshake */
+#else
+#define USB_ISERIAL 0
+#endif
 static const uint8_t DEV_DESC[18] = {18, 1, 0x10, 0x01, 0, 0, 0, 64, 0x09, 0x12, FELUCCA_USB_PID & 0xFF,
                                      FELUCCA_USB_PID >> 8, 0x00 + 0x10 * (FELUCCA_UAC + FELUCCA_UAC_48K), 0x03,
-                                     1, 2, 0, 1};
+                                     1, 2, USB_ISERIAL, 1};
 static const uint8_t CFG_DESC[] = {
     9, 2, CFG_LEN & 0xFF, CFG_LEN >> 8, USB_NIF, 1, 0, 0x80, 50,
 #endif
@@ -274,6 +280,21 @@ static const uint8_t STR2[] = {30, 3, 'F', 0, 'e', 0, 'l', 0, 'u', 0, 'c', 0, 'c
 /* TransitFM1: "FM-1", the official firmware's name, so that every installer finds and treats it as the stock one */
 static const uint8_t STR2[] = {10, 3, 'F', 0, 'M', 0, '-', 0, '1', 0};
 #endif
+#ifdef TRANSIT_INFO
+static uint8_t STR3[2 + 2 * 32];
+static uint16_t str3_len(void)          /* "TransitFM1-0.1.4", UTF-16LE, built on the first request */
+{
+    static const char SN[] = TRANSIT_SERIAL;
+    uint32_t i;
+    for (i = 0; i < sizeof SN - 1u && i < 32u; i++) {
+        STR3[2 + 2 * i] = (uint8_t)SN[i];
+        STR3[3 + 2 * i] = 0;
+    }
+    STR3[0] = (uint8_t)(2 + 2 * i);
+    STR3[1] = 3;
+    return STR3[0];
+}
+#endif
 
 static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
 {
@@ -310,6 +331,12 @@ static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
             *d = STR2;
             *l = sizeof STR2;
             return 1;
+#ifdef TRANSIT_INFO
+        case 3:
+            *l = str3_len();
+            *d = STR3;
+            return 1;
+#endif
         default:
             return 0;
         }

@@ -163,10 +163,44 @@ static uint32_t ota_take(void)
     return d;
 }
 
+#ifdef TRANSIT_INFO
+/* TransitFM1's own identity for apps (FM1Kit asked, TransitFM1 issue 1): F0 7D 'T' 'F' '1' 01 F7 ->
+ * F0 7D 'T' 'F' '1' 02 "TransitFM1 0.1.4" F7. No installer sends it, the official V15 ignores it, and the
+ * handshake (cmd 0x11) stays FM-1_015, so installers still take TransitFM1 for V15 */
+static int ota_transit_info(void)
+{
+    static const uint8_t Q[5] = {0x7Du, 'T', 'F', '1', 0x01u};
+    static const char INFO[] = TRANSIT_INFO;
+    static uint8_t r[7 + sizeof INFO];
+    const uint8_t *p;
+    uint32_t n, i;
+    if (!ota_frame_get(&p, &n) || n != sizeof Q)
+        return 0;
+    for (i = 0; i < sizeof Q; i++)
+        if (p[i] != Q[i])
+            return 0;
+    ota_frame_done();
+    r[0] = 0xF0;
+    for (i = 0; i < 4u; i++)
+        r[1 + i] = Q[i];
+    r[5] = 0x02;
+    for (i = 0; i < sizeof INFO - 1u; i++)
+        r[6 + i] = (uint8_t)INFO[i] & 0x7Fu;
+    r[6 + i] = 0xF7;
+    ota_wire_send(r, 7u + i);
+    return 1;
+}
+#endif
+
 /* main loop, outside a session: answer handshakes */
 static void ota_service(void)
 {
-    uint32_t d = ota_take();
+    uint32_t d;
+#ifdef TRANSIT_INFO
+    if (ota_transit_info())
+        return;
+#endif
+    d = ota_take();
     if (d == 7u && ota_dec[2] == 0x11)
         ota_reply_identity();
 }

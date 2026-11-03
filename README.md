@@ -20,6 +20,11 @@ for you to install the next firmware. Three things make it a good stopover:
   at any point before that last sector leaves an FM-1 that comes back in update mode: switch it on, run the
   installer again.
 
+> **0.1.4:** a refused install now says why on the screen (for M-VAVE's V16 and Baud Girl: "TOO LARGE FOR
+> TRANSIT: INSTALL V15 FIRST"). Apps can tell TransitFM1 from V15 by its USB serial number or a SysEx query
+> (docs/SAFETY.md "The identities"); installers still see V15. **V16:** install V15 first, then V16 from V15 with
+> M-VAVE's updater. V16 changes the boot area, which TransitFM1 never writes.
+>
 > **0.1.2 was withdrawn:** it let Baud Girl's installer write over TransitFM1, and the unit was left dark (Baud
 > Girl's image is larger than TransitFM1's loader writes). **0.1.3** goes back to 0.1.1's behaviour and refuses such
 > packages itself. For Baud Girl, go through the official V15. **0.1.3 on a unit** (2026-10-18): V15 → Baud Girl
@@ -65,6 +70,8 @@ written, no rescue code is left on the unit, so almost the whole one-to-two-minu
 3. **Leaving.** Open the installer of the firmware you want and install it. To that installer the FM-1 is an FM-1
    on V15. To go back to stock, install M-VAVE's `FM-1.fwsc` (the web installer's "Install a package file from
    here" takes it, or any other `.fwsc`).
+   - **M-VAVE's V16: go through the official V15** as well. V16 is larger than the app area and brings a new
+     boot area that only M-VAVE's updater writes.
    - **Baud Girl: go through the official V15.** Its image is larger than the app area TransitFM1's loader writes;
      only M-VAVE's loader installs it whole. Install V15 from TransitFM1, then Baud Girl with its own installer.
      TransitFM1 refuses such a package, and Baud Girl's installer refuses TransitFM1's updater, both rightly.

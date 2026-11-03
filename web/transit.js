@@ -64,6 +64,8 @@ export async function packageFrom(bytes, label = null) {
   if (!/^FM-1_\d+$/.test(product)) throw new Error(`This package is not for the FM-1 (its identity is ${product || "empty"}).`);
   let flashSize = 0;
   try { flashSize = new Package(bytes).flashSize; } catch (_) { /* (a layout the reader does not know: the FM-1 decides) */ }
+  if (flashSize > 0x93000 && product === "FM-1_016")   // M-VAVE's V16: 0xA9000, and a new boot area (uboot.boot, isd_config)
+    throw new Error("This is M-VAVE's V16. It is larger than TransitFM1 can install, and it brings a new boot area that only M-VAVE's own updater writes. Install the official V15 first, then V16 from V15 with M-VAVE's updater.");
   if (flashSize > 0x93000)   // TransitFM1 writes the app area only (firmware/src/ota.c refuses it too): Baud Girl's grows past it
     throw new Error("This firmware is larger than TransitFM1 can install (its image reaches past the app area, as Baud Girl's does). Install the official V15 first, then this firmware with its own installer.");
   const official = await sha256hex(bytes) === STOCK_V15_SHA256;

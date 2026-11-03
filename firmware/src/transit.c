@@ -15,8 +15,6 @@
 #include "platform.c"
 
 #define C_ACC RGB(120, 200, 255)                /* the transit sign's blue */
-#define C_OFF RGB(110, 110, 110)
-#define C_BAD RGB(255, 90, 60)
 
 static void app_main(void)
 {

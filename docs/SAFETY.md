@@ -62,6 +62,15 @@ differs and then commits. The flash head (0x0000..0x3FFF, the SPL) is never writ
 | the update loader | `ota-FM-1_900`, USB device "Felucca Update" | the update mode the Felucca-family installers and the FM-1 Firmware Hub resume after a cut (they resume only `ota-FM-1_9NN`). Also what an installer that needs M-VAVE's updater recognises and refuses, rightly: Baud Girl's (below) |
 | the update record (RAM 0x01C7FD88, flash 0xE4F00) | `ota-FM-1_015` | the same bytes as ChoralRoot's record, which the stub writes for its own hand-over |
 
+**Telling TransitFM1 from V15** (0.1.4, issue 1): the handshake above stays V15's, byte for byte. For apps that
+want to know, TransitFM1 says what it is where no installer looks:
+
+- the USB serial number (string 3): `TransitFM1-0.1.4`. The official V15 has none;
+- SysEx `F0 7D 54 46 31 01 F7` (`7D`, "TF1", 1) is answered `F0 7D 54 46 31 02 "TransitFM1 0.1.4" F7`. V15 doesn't
+  answer it. No installer sends it.
+
+The update loader has neither (it is the same binary as 0.1.3's): in update mode it is `ota-FM-1_900`.
+
 Dinghy's USB rescue (the boot guard's) answered `FM-1_000`, which ChoralRoot's installer refuses as "Sloop's
 rescue mode". TransitFM1's answers `FM-1_015` too.
 
@@ -91,7 +100,15 @@ package; the loader check against the stub's on 20000 damaged copies) pass too.
   on the page. Into TransitFM1 from Baud Girl: not offered (its identity `FM-1_101` is one no table here knows); go
   through V15 too.
 - **Any package whose `flash.bin` reaches past 0x93000** is refused (0.1.3), before anything is written: the same
-  reason. Go through V15.
+  reason. Go through V15. From 0.1.4 the screen says why: "TOO LARGE FOR TRANSIT: INSTALL V15 FIRST", "NOTHING WAS
+  INSTALLED" and the code (-4).
+- **M-VAVE's V16** (`FM-1_016`, 2026-10-21) is refused the same way, after its header (2 requests). Its `flash.bin`
+  is 0xA9000 B (V15's: 0x93000). V16 also brings a new boot head: `uboot.boot` 0x3898 B (V15's: 0x3830), a new
+  `isd_config.ini`, and a new region table (VM 0xBA000, SEQ64 0xDA000). Felucca-family loaders, TransitFM1's
+  included, never write the head 0x0000..0x3FFF, so even a longer app area would not install V16 whole: only
+  M-VAVE's own updater does. **Go to V15, then V16 from V15 with M-VAVE's updater.** V16 carries the same update
+  loader as V15 (hcrc EBAA, dcrc 5881). The page names V16 when it refuses it. (Back from V16 to V15, V15 may play
+  one note at a time: V16 changes V15's settings record at 0xFBD80. That's M-VAVE's, m-vave/fm1_open#16.)
 - **From Bubba Machine there is no way in.** Its updater accepts only a package with M-VAVE's own update loader and
   the unit's boot head (its `hal/fm1/fm1_update.c`). Go to V15 with Bubba's installer first.
 - **Arriving is as safe as the firmware you leave.** The write into TransitFM1 is done by the loader your current
@@ -200,3 +217,10 @@ The steps for the next version, with the Transporter at hand, a full battery, an
 6. **Another firmware's own installer** (the FM-1 Firmware Hub, a Felucca release): it should see an FM-1 on V15
    and install over it.
 7. **A DAW sending MIDI** (clock, notes) to the FM-1 for a minute, then an install: step 1 must go through.
+8. **0.1.4's reasons:** install M-VAVE's V16 `FM-1.fwsc` with fm1_install.py (the page refuses it before asking
+   the FM-1). The screen should read "UPDATE", "FAILED", "TOO LARGE FOR TRANSIT:", "INSTALL V15 FIRST", "NOTHING
+   WAS INSTALLED" and "CODE -4", with nothing written. A V15 install right after it should go through without a
+   power cycle.
+9. **0.1.4's identity:** the USB serial number reads `TransitFM1-0.1.4` (macOS: `ioreg -p IOUSB -l -n FM-1 | grep
+   'USB Serial'`). SysEx `F0 7D 54 46 31 01 F7` is answered "TransitFM1 0.1.4". `fm1_install.py --info` still
+   gives `FM-1_015`. ChoralRoot's and the Firmware Hub's installers still see V15.

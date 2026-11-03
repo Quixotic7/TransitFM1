@@ -4,6 +4,7 @@
 #   tests/run_tests.sh
 #   PKG=path/transit-X.Y.fwsc  the package to test (default: build/transit.fwsc, ./build.sh's; a release build's is
 #                              build/release-X.Y/transit-X.Y.fwsc). build/transit.bin is the app of the last build
+#   V16_PKG=path/FM-1.fwsc   also: M-VAVE's V16 refused after its header (M-VAVE's file; not in this tree)
 #   V15_PKG=path/FM-1.fwsc   also: TransitFM1 -> the official V15 and back (M-VAVE's file; not in this tree)
 #   CR_PKG=path/choralroot.fwsc  also: TransitFM1 <-> ChoralRoot (the same sector 0x4000, no unprotected cut)
 # Ends "ALL TESTS PASSED" (exit 0), or stops at the first failure.
@@ -31,7 +32,7 @@ python3 tools/make_stub_test_pkg.py other-body --board smk37 --product FM-1_015 
     --ota build/loader/ota.bin -o "$H/stub-test-long.fwsc" >/dev/null
 echo "== step 1: our own loader staged, kept, restaged; the long package refused (firmware/src/ota.c)"
 $CC $SAN -o "$H/ota_test" tests/ota_test.c
-OTA_LONG_PKG="$H/stub-test-long.fwsc" "$H/ota_test" "$PKG" ${V15_PKG:+"$V15_PKG"}
+OTA_LONG_PKG="$H/stub-test-long.fwsc" OTA_V16_PKG="${V16_PKG:-}" "$H/ota_test" "$PKG" ${V15_PKG:+"$V15_PKG"}
 echo "== the loader's order: a power cut after every erase and every programmed page (firmware/loader/ldr_core.c)"
 for m in other-body old-stub no-stub no-stub-other; do
     python3 tools/make_stub_test_pkg.py "$m" --app build/transit.bin --ota build/loader/ota.bin --product FM-1_015 \
