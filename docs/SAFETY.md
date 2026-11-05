@@ -218,7 +218,20 @@ A unit running RemoteFM1 0.3.3 (`FM-1_52000303`; its flash chip was not read), w
    ChoralRoot's tool installed V15 over that V15 (47 reads, done), and TransitFM1's tool installed RemoteFM1 0.3.3
    at the first try (25 reads, `FM-1_52000303`). The two tools send the same messages, so the likely cause is the
    V15 that TransitFM1's loader had written: its first update request was ignored until M-VAVE's own loader wrote V15
-   again. Not yet reproduced.
+   again. **Not reproduced** in the second run (below).
+
+**The second run** (the same unit and day, the FM-1 two USB hubs deep):
+
+1. RemoteFM1 → TransitFM1 → V15 (ChoralRoot's tool) → RemoteFM1 with RemoteFM1's own installer: all done at the
+   first try (25 reads). The "0 requests" above did not come back.
+2. Again with the V16 refusal before V15: TransitFM1, V16 refused after 2 requests, then V15. That write **lost the
+   connection after 708 requests**. RemoteFM1's installer found `ota-FM-1_900` ("Felucca Update") and continued
+   with RemoteFM1's package. It lost the connection too, after 225 requests. The unit stayed in update mode and kept
+   answering. One more install of RemoteFM1 0.3.3 with `tools/fm1_install.py` wrote the whole package: done,
+   `FM-1_52000303`. The cut-off write was rescued, as designed.
+   - The cause of the two drops is not known: USB (two hubs), the host, or the loader's watchdog (~8 s, fed by
+     ldr_poll). The loader's only 0.1.4 change is the chip id check, done once before anything is written.
+   - The screen was black (update mode) when it was looked at, so the V16 reason text is still unread.
 
 The run also found that `tools/fm1_install.py` called M-VAVE's own V15 "damaged (USR: CRC)". Its package check
 compared every entry's CRC, and only flash.bin and ota.bin carry one (fixed; `tests/install_pkg_test.py`).
