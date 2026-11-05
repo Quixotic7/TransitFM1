@@ -434,7 +434,10 @@ def package_damage(image):
         name = e[0x40:0x50].split(b"\0")[0].decode("ascii", "replace")
         if off + size > len(image):
             return f"{name}: cut short"
-        if _crc16(image[off:off + size]) != dcrc:
+        kind = int.from_bytes(e[0:2], "little")
+        # only flash.bin (0) and ota.bin (100) carry a CRC of their bytes; M-VAVE's packer stores something else in
+        # the others (V15's USR, V16's isd_config.ini): their bounds only, as web/fm1pkg.js checks
+        if kind in (0, 100) and _crc16(image[off:off + size]) != dcrc:
             return f"{name}: CRC"
     return None
 

@@ -204,6 +204,25 @@ updater, which takes only M-VAVE's own package: go through V15).
 TransitFM1**: the first boot shows "STAGING THE LOADER", then the TRANSIT screen with no red line; then OCT- at
 power-on gives three flashes and update mode; an install with a DAW sending clock to the FM-1 goes through.
 
+## 0.1.4 on the unit (2026-11-04)
+
+A unit running RemoteFM1 0.3.3 (`FM-1_52000303`; its flash chip was not read), with `tools/fm1_install.py`:
+
+1. **RemoteFM1 → TransitFM1 0.1.4** (sha256 `3ba85410…`): 19 reads in step 1, the write, `FM-1_015`.
+2. **The identity:** `--info` gives `FM-1_015`. The USB serial number reads `TransitFM1-0.1.4` (ioreg). `F0 7D 54 46 31 01 F7`
+   is answered `7D 54 46 31 02 "TransitFM1 0.1.4"`. ChoralRoot's installer still says "the official M-VAVE firmware".
+3. **V16** (M-VAVE's `FM-1_016`, sent past the tool's own package check): "stopped answering after 2 requests;
+   nothing was written". The FM-1 then still ran TransitFM1. The screen's text was not read in this run.
+4. **V15 right after**, no power cycle (ChoralRoot's `fm1_install.py`): done, `FM-1_015`, no serial number: stock.
+5. **Back to RemoteFM1 0.3.3 from that V15.** RemoteFM1's installer got "0 requests" twice, 15 s apart. Then
+   ChoralRoot's tool installed V15 over that V15 (47 reads, done), and TransitFM1's tool installed RemoteFM1 0.3.3
+   at the first try (25 reads, `FM-1_52000303`). The two tools send the same messages, so the likely cause is the
+   V15 that TransitFM1's loader had written: its first update request was ignored until M-VAVE's own loader wrote V15
+   again. Not yet reproduced.
+
+The run also found that `tools/fm1_install.py` called M-VAVE's own V15 "damaged (USR: CRC)". Its package check
+compared every entry's CRC, and only flash.bin and ota.bin carry one (fixed; `tests/install_pkg_test.py`).
+
 ## The device test plan
 
 The steps for the next version, with the Transporter at hand, a full battery, and M-VAVE's `FM-1.fwsc`:

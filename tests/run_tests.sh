@@ -30,6 +30,8 @@ python3 tests/stub_pkg_test.py
 echo "== a package whose flash.bin reaches past the app area (as Baud Girl's grows): made for the refusals below"
 python3 tools/make_stub_test_pkg.py other-body --board smk37 --product FM-1_015 --app build/transit.bin \
     --ota build/loader/ota.bin -o "$H/stub-test-long.fwsc" >/dev/null
+echo "== tools/fm1_install.py: the package check (M-VAVE's packages clean, a damaged file caught)"
+python3 tests/install_pkg_test.py "$PKG" ${V15_PKG:+"$V15_PKG"} ${V16_PKG:+"$V16_PKG"}
 echo "== the flash chips (firmware/hal/fm1_flash_id.h)"
 $CC $SAN -o "$H/flash_id_test" tests/flash_id_test.c
 "$H/flash_id_test"
