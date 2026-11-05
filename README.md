@@ -20,7 +20,8 @@ for you to install the next firmware. Three things make it a good stopover:
   at any point before that last sector leaves an FM-1 that comes back in update mode: switch it on, run the
   installer again.
 
-> **0.1.4:** a refused install now says why on the screen (for M-VAVE's V16 and Baud Girl: "TOO LARGE FOR
+> **0.1.4:** TransitFM1 works on the FM-1s with the logo on the front. Their second flash chip (0xB36014) made
+> 0.1.3 and its loader refuse every install there. A refused install now says why on the screen (for M-VAVE's V16 and Baud Girl: "TOO LARGE FOR
 > TRANSIT: INSTALL V15 FIRST"). Apps can tell TransitFM1 from V15 by its USB serial number or a SysEx query
 > (docs/SAFETY.md "The identities"); installers still see V15. **V16:** install V15 first, then V16 from V15 with
 > M-VAVE's updater. V16 changes the boot area, which TransitFM1 never writes.

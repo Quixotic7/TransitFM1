@@ -278,7 +278,10 @@ void fm1_cstart(void)
     fm1_boot.p3_rst = (uint8_t)p3;
     if (boot_mode == BOOT_RECOVERY)
         recovery_main();                        /* the boot guard's second crash: the USB rescue */
-    flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;
+    {
+        uint32_t id = FL_FAR(fl_jedec_ram)();
+        flash_ok = FL_JEDEC_OK(id);
+    }
     lcd_init();                                 /* first: anything that faults from here on shows its crash screen */
     lcd_ready = 1;
     lcd_fill(0, 0, 240, 240, C_BLACK);

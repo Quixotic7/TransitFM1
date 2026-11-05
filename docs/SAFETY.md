@@ -69,7 +69,7 @@ want to know, TransitFM1 says what it is where no installer looks:
 - SysEx `F0 7D 54 46 31 01 F7` (`7D`, "TF1", 1) is answered `F0 7D 54 46 31 02 "TransitFM1 0.1.4" F7`. V15 doesn't
   answer it. No installer sends it.
 
-The update loader has neither (it is the same binary as 0.1.3's): in update mode it is `ota-FM-1_900`.
+The update loader has neither: in update mode it is `ota-FM-1_900`, as before.
 
 Dinghy's USB rescue (the boot guard's) answered `FM-1_000`, which ChoralRoot's installer refuses as "Sloop's
 rescue mode". TransitFM1's answers `FM-1_015` too.
@@ -109,6 +109,12 @@ package; the loader check against the stub's on 20000 damaged copies) pass too.
   M-VAVE's own updater does. **Go to V15, then V16 from V15 with M-VAVE's updater.** V16 carries the same update
   loader as V15 (hcrc EBAA, dcrc 5881). The page names V16 when it refuses it. (Back from V16 to V15, V15 may play
   one note at a time: V16 changes V15's settings record at 0xFBD80. That's M-VAVE's, m-vave/fm1_open#16.)
+- **The flash chip.** The app, its USB rescue and the loader write only to the FM-1's 1 MiB part: Puya's 0x856014
+  or, from 0.1.4, 0xB36014 (FM-1s with the logo on the front, late 2026; `firmware/hal/fm1_flash_id.h`). On another
+  id the screen says "UNKNOWN FLASH CHIP" and every install is refused. **0.1.3 and earlier on a 0xB36014 unit**
+  show exactly that: no installer gets past step 1, and OCT- at power-on doesn't help, because the loader refuses
+  the chip too. The way out is the ROM's USB boot: TransitFM1 still takes the key `F0 22 24 35 7D F7` (MvaveFM1Unbricker
+  sends it). From there, MvaveFM1Unbricker or the Transporter restores V15. Install 0.1.4 from V15.
 - **From Bubba Machine there is no way in.** Its updater accepts only a package with M-VAVE's own update loader and
   the unit's boot head (its `hal/fm1/fm1_update.c`). Go to V15 with Bubba's installer first.
 - **Arriving is as safe as the firmware you leave.** The write into TransitFM1 is done by the loader your current
